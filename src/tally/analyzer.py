@@ -1219,6 +1219,21 @@ def write_summary_file(stats, filepath, year=2025, home_locations=None):
             border-color: #ff6b6b;
             color: #ff6b6b;
         }}
+        .clear-all-btn {{
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.3);
+            color: #888;
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }}
+        .clear-all-btn:hover {{
+            background: rgba(255, 107, 107, 0.2);
+            border-color: #ff6b6b;
+            color: #ff6b6b;
+        }}
         .summary-grid {{
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -1402,6 +1417,37 @@ def write_summary_file(stats, filepath, year=2025, home_locations=None):
         }}
         .badge.avg {{ background: rgba(79, 172, 254, 0.2); color: #4facfe; }}
         .badge.div {{ background: rgba(240, 147, 251, 0.2); color: #f093fb; }}
+        /* Tooltips */
+        [data-tooltip] {{
+            position: relative;
+            cursor: help;
+        }}
+        [data-tooltip]:hover::after {{
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: #fff;
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            white-space: nowrap;
+            z-index: 1000;
+            pointer-events: none;
+        }}
+        [data-tooltip]:hover::before {{
+            content: '';
+            position: absolute;
+            bottom: 115%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 6px solid transparent;
+            border-top-color: rgba(0, 0, 0, 0.9);
+            z-index: 1000;
+        }}
+        th[data-tooltip] {{ cursor: pointer; }}
         .highlight {{
             background: rgba(255, 230, 0, 0.3);
             color: #fff;
@@ -1723,7 +1769,7 @@ def write_summary_file(stats, filepath, year=2025, home_locations=None):
 
             <div class="card non-recurring">
                 <h2>Non-Recurring (YTD)</h2>
-                <div class="amount">${non_recurring_total:,.0f}</div>
+                <div class="amount">${non_recurring_total:,.0f} <span class="breakdown-pct">({non_recurring_total/actual*100:.1f}%)</span></div>
                 <div class="breakdown">
                     <div class="breakdown-item">
                         <span class="name">Annual Bills</span>
@@ -1758,7 +1804,7 @@ def write_summary_file(stats, filepath, year=2025, home_locations=None):
 
         <section class="monthly-section">
             <div class="section-header" onclick="toggleSection(this)">
-                <h2><span class="toggle">▼</span> Monthly Recurring</h2>
+                <h2><span class="toggle">▼</span> <span data-tooltip="Expenses appearing 6+ months with consistent amounts">Monthly Recurring</span></h2>
                 <span class="section-total"><span class="section-monthly">${stats['monthly_avg']:,.0f}/mo</span> · <span class="section-ytd">${stats['monthly_total']:,.0f}</span> <span class="section-pct">({stats['monthly_total']/actual*100:.1f}%)</span></span>
             </div>
             <div class="section-content">
@@ -1767,12 +1813,12 @@ def write_summary_file(stats, filepath, year=2025, home_locations=None):
                 <thead>
                     <tr>
                         <th onclick="sortTable('monthly-table', 0, 'string')">Merchant</th>
-                        <th onclick="sortTable('monthly-table', 1, 'number')">Months</th>
-                        <th onclick="sortTable('monthly-table', 2, 'number')">Count</th>
-                        <th>Type</th>
-                        <th onclick="sortTable('monthly-table', 4, 'money')">Monthly</th>
-                        <th onclick="sortTable('monthly-table', 5, 'money')">YTD</th>
-                        <th onclick="sortTable('monthly-table', 6, 'number')">%</th>
+                        <th onclick="sortTable('monthly-table', 1, 'number')" data-tooltip="Number of months with transactions">Months</th>
+                        <th onclick="sortTable('monthly-table', 2, 'number')" data-tooltip="Total transaction count">Count</th>
+                        <th data-tooltip="avg = average when active, /12 = YTD divided by 12">Type</th>
+                        <th onclick="sortTable('monthly-table', 4, 'money')" data-tooltip="Monthly cost based on Type calculation">Monthly</th>
+                        <th onclick="sortTable('monthly-table', 5, 'money')" data-tooltip="Year-to-date total">YTD</th>
+                        <th onclick="sortTable('monthly-table', 6, 'number')" data-tooltip="Percentage of section total">%</th>
                     </tr>
                 </thead>
                 <tbody>'''
@@ -1783,10 +1829,10 @@ def write_summary_file(stats, filepath, year=2025, home_locations=None):
         reverse=True)
     for merchant, data in sorted_monthly:
         if data['is_consistent']:
-            calc_type = '<span class="badge avg">avg</span>'
+            calc_type = '<span class="badge avg" data-tooltip="Average when active — consistent monthly payments">avg</span>'
             monthly = data['avg_when_active']
         else:
-            calc_type = '<span class="badge div">/12</span>'
+            calc_type = '<span class="badge div" data-tooltip="YTD ÷ 12 — irregular payment amounts">/12</span>'
             monthly = data['total'] / 12
         section_total = stats['monthly_total']
         pct = (data['total'] / section_total * 100) if section_total > 0 else 0
@@ -1828,7 +1874,7 @@ def write_summary_file(stats, filepath, year=2025, home_locations=None):
 
         <section class="annual-section">
             <div class="section-header" onclick="toggleSection(this)">
-                <h2><span class="toggle">▼</span> Annual Bills</h2>
+                <h2><span class="toggle">▼</span> <span data-tooltip="Once-a-year expenses like insurance or annual subscriptions">Annual Bills</span></h2>
                 <span class="section-total">${stats['annual_total']:,.0f} <span class="section-pct">({stats['annual_total']/actual*100:.1f}%)</span></span>
             </div>
             <div class="section-content">
@@ -1884,7 +1930,7 @@ def write_summary_file(stats, filepath, year=2025, home_locations=None):
 
         <section class="periodic-section">
             <div class="section-header" onclick="toggleSection(this)">
-                <h2><span class="toggle">▼</span> Periodic Recurring</h2>
+                <h2><span class="toggle">▼</span> <span data-tooltip="Regular but not monthly expenses (quarterly, bi-annual)">Periodic Recurring</span></h2>
                 <span class="section-total">${stats['periodic_total']:,.0f} <span class="section-pct">({stats['periodic_total']/actual*100:.1f}%)</span></span>
             </div>
             <div class="section-content">
@@ -1940,7 +1986,7 @@ def write_summary_file(stats, filepath, year=2025, home_locations=None):
 
         <section class="travel-section">
             <div class="section-header" onclick="toggleSection(this)">
-                <h2><span class="toggle">▼</span> Travel / Trips</h2>
+                <h2><span class="toggle">▼</span> <span data-tooltip="Spending outside your home location(s)">Travel / Trips</span></h2>
                 <span class="section-total">${stats['travel_total']:,.0f} <span class="section-pct">({stats['travel_total']/actual*100:.1f}%)</span></span>
             </div>
             <div class="section-content">
@@ -1997,7 +2043,7 @@ def write_summary_file(stats, filepath, year=2025, home_locations=None):
 
         <section class="oneoff-section">
             <div class="section-header" onclick="toggleSection(this)">
-                <h2><span class="toggle">▼</span> One-Off Purchases</h2>
+                <h2><span class="toggle">▼</span> <span data-tooltip="Single large purchases that don't recur">One-Off Purchases</span></h2>
                 <span class="section-total">${stats['one_off_total']:,.0f} <span class="section-pct">({stats['one_off_total']/actual*100:.1f}%)</span></span>
             </div>
             <div class="section-content">
@@ -2053,7 +2099,7 @@ def write_summary_file(stats, filepath, year=2025, home_locations=None):
 
         <section class="variable-section">
             <div class="section-header" onclick="toggleSection(this)">
-                <h2><span class="toggle">▼</span> Variable / Discretionary</h2>
+                <h2><span class="toggle">▼</span> <span data-tooltip="Day-to-day spending that doesn't fit other patterns">Variable / Discretionary</span></h2>
                 <span class="section-total"><span class="section-monthly">${stats['variable_monthly']:,.0f}/mo</span> · <span class="section-ytd">${stats['variable_total']:,.0f}</span> <span class="section-pct">({stats['variable_total']/actual*100:.1f}%)</span></span>
             </div>
             <div class="section-content">
@@ -2172,13 +2218,20 @@ def write_summary_file(stats, filepath, year=2025, home_locations=None):
 
         function renderFilters() {{
             const container = document.getElementById('filterChips');
-            container.innerHTML = activeFilters.map((f, i) => `
+            let html = activeFilters.map((f, i) => `
                 <div class="filter-chip ${{f.type}} ${{f.mode}}" data-index="${{i}}">
                     <span class="chip-type">${{f.type.charAt(0)}}</span>
                     <span class="chip-text">${{f.text}}</span>
                     <span class="chip-remove" data-action="remove">×</span>
                 </div>
             `).join('');
+
+            // Add "Clear all" button if there are multiple filters
+            if (activeFilters.length > 1) {{
+                html += '<button class="clear-all-btn" onclick="clearAllFilters()">Clear all</button>';
+            }}
+
+            container.innerHTML = html;
 
             // Add click handlers
             container.querySelectorAll('.filter-chip').forEach(chip => {{
@@ -2191,6 +2244,12 @@ def write_summary_file(stats, filepath, year=2025, home_locations=None):
                     }}
                 }});
             }});
+        }}
+
+        function clearAllFilters() {{
+            activeFilters = [];
+            renderFilters();
+            applyFilters();
         }}
 
         function applyFilters() {{
@@ -2721,7 +2780,7 @@ def write_summary_file(stats, filepath, year=2025, home_locations=None):
             // Update Non-Recurring card
             const nonRecCard = document.querySelector('.card.non-recurring');
             if (nonRecCard) {{
-                nonRecCard.querySelector('.amount').textContent = formatMoney(nonRecurring);
+                nonRecCard.querySelector('.amount').innerHTML = formatMoney(nonRecurring) + ' <span class="breakdown-pct">(' + formatPct(nonRecurring) + ')</span>';
                 const breakdownItems = nonRecCard.querySelectorAll('.breakdown-item .value');
                 if (breakdownItems[0]) breakdownItems[0].innerHTML = formatMoney(annualTotal) + ' <span class="breakdown-pct">(' + formatPct(annualTotal) + ')</span>';
                 if (breakdownItems[1]) breakdownItems[1].innerHTML = formatMoney(periodicTotal) + ' <span class="breakdown-pct">(' + formatPct(periodicTotal) + ')</span>';
