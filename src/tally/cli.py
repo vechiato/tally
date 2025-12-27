@@ -14,6 +14,15 @@ import sys
 
 from ._version import VERSION, GIT_SHA
 from .config_loader import load_config
+
+BANNER = r'''
+  ████████╗ █████╗ ██╗     ██╗  ██╗   ██╗
+  ╚══██╔══╝██╔══██╗██║     ██║  ╚██╗ ██╔╝
+     ██║   ███████║██║     ██║   ╚████╔╝
+     ██║   ██╔══██║██║     ██║    ╚██╔╝
+     ██║   ██║  ██║███████╗███████╗██║
+     ╚═╝   ╚═╝  ╚═╝╚══════╝╚══════╝╚═╝
+'''
 from .merchant_utils import get_all_rules, diagnose_rules
 from .analyzer import (
     parse_amex,
@@ -1753,8 +1762,9 @@ Examples:
 
     args = parser.parse_args()
 
-    # If no command specified, show help
+    # If no command specified, show help with banner
     if args.command is None:
+        print(BANNER)
         parser.print_help()
         sys.exit(0)
 
@@ -1770,8 +1780,9 @@ Examples:
     elif args.command == 'diag':
         cmd_diag(args)
     elif args.command == 'version':
+        print(BANNER)
         sha_display = GIT_SHA[:8] if GIT_SHA != 'unknown' else 'unknown'
-        print(f"tally {VERSION} ({sha_display})")
+        print(f"  v{VERSION} ({sha_display})")
 
 
 if __name__ == '__main__':
