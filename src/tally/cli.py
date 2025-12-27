@@ -1778,6 +1778,14 @@ Examples:
     if args.command is None:
         print(BANNER)
         parser.print_help()
+
+        # Check for updates
+        update_info = check_for_updates()
+        if update_info and update_info.get('update_available'):
+            print()
+            print(f"Update available: {update_info['latest_version']} (current: {update_info['current_version']})")
+            print(f"  {update_info['release_url']}")
+
         sys.exit(0)
 
     # Dispatch to command handler
