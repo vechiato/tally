@@ -129,6 +129,10 @@
 
         .install-body {
             padding: 1rem 1.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
         }
 
         .install-code {
@@ -139,6 +143,28 @@
 
         .install-code::before {
             content: '$ ';
+            color: #4ade80;
+        }
+
+        .copy-btn {
+            background: rgba(255,255,255,0.1);
+            border: none;
+            border-radius: 4px;
+            padding: 0.4rem 0.6rem;
+            cursor: pointer;
+            color: rgba(255,255,255,0.5);
+            font-size: 0.75rem;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        .copy-btn:hover {
+            background: rgba(74, 222, 128, 0.2);
+            color: #4ade80;
+        }
+
+        .copy-btn.copied {
+            background: rgba(74, 222, 128, 0.2);
             color: #4ade80;
         }
 
@@ -248,7 +274,8 @@
                     <div class="install-label">Linux / macOS</div>
                 </div>
                 <div class="install-body">
-                    <div class="install-code">curl -fsSL https://raw.githubusercontent.com/davidfowl/tally/main/install.sh | bash</div>
+                    <div class="install-code" data-cmd="curl -fsSL https://raw.githubusercontent.com/davidfowl/tally/main/install.sh | bash">curl -fsSL https://raw.githubusercontent.com/davidfowl/tally/main/install.sh | bash</div>
+                    <button class="copy-btn" onclick="copyCmd(this)">Copy</button>
                 </div>
             </div>
 
@@ -258,7 +285,8 @@
                     <div class="install-label">Windows PowerShell</div>
                 </div>
                 <div class="install-body">
-                    <div class="install-code">irm https://raw.githubusercontent.com/davidfowl/tally/main/install.ps1 | iex</div>
+                    <div class="install-code" data-cmd="irm https://raw.githubusercontent.com/davidfowl/tally/main/install.ps1 | iex">irm https://raw.githubusercontent.com/davidfowl/tally/main/install.ps1 | iex</div>
+                    <button class="copy-btn" onclick="copyCmd(this)">Copy</button>
                 </div>
             </div>
 
@@ -268,7 +296,8 @@
                     <div class="install-label">Python (uv)</div>
                 </div>
                 <div class="install-body">
-                    <div class="install-code">uv tool install git+https://github.com/davidfowl/tally</div>
+                    <div class="install-code" data-cmd="uv tool install git+https://github.com/davidfowl/tally">uv tool install git+https://github.com/davidfowl/tally</div>
+                    <button class="copy-btn" onclick="copyCmd(this)">Copy</button>
                 </div>
             </div>
         </div>
@@ -318,5 +347,19 @@
             <a href="https://github.com/davidfowl/tally#readme">Docs</a>
         </div>
     </div>
+
+    <script>
+        function copyCmd(btn) {
+            const cmd = btn.previousElementSibling.dataset.cmd;
+            navigator.clipboard.writeText(cmd).then(() => {
+                btn.textContent = 'Copied!';
+                btn.classList.add('copied');
+                setTimeout(() => {
+                    btn.textContent = 'Copy';
+                    btn.classList.remove('copied');
+                }, 2000);
+            });
+        }
+    </script>
 </body>
 </html>
