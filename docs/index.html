@@ -3,171 +3,244 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tally - LLM-Powered Spending Categorization</title>
+    <title>Tally - Let AI Classify Your Transactions</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono&display=swap" rel="stylesheet">
     <style>
-        :root {
-            --bg: #0d1117;
-            --fg: #e6edf3;
-            --muted: #8b949e;
-            --accent: #58a6ff;
-            --green: #3fb950;
-            --border: #30363d;
-        }
         * { box-sizing: border-box; margin: 0; padding: 0; }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-            background: var(--bg);
-            color: var(--fg);
-            line-height: 1.6;
-            padding: 2rem;
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            min-height: 100vh;
+            line-height: 1.7;
         }
+
         .container {
-            max-width: 800px;
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 4rem 2rem;
+        }
+
+        .hero {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+
+        .logo {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 3rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 1rem;
+        }
+
+        .tagline {
+            font-size: 1.25rem;
+            color: rgba(255,255,255,0.7);
+            max-width: 500px;
             margin: 0 auto;
         }
-        pre.banner {
-            font-family: monospace;
-            font-size: 0.7rem;
-            color: var(--accent);
-            margin-bottom: 1rem;
-            overflow-x: auto;
+
+        .install-section {
+            margin-bottom: 3rem;
         }
-        h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
-        .tagline { color: var(--muted); margin-bottom: 2rem; font-size: 1.1rem; }
+
         h2 {
-            font-size: 1.2rem;
-            margin: 2rem 0 1rem;
-            padding-bottom: 0.5rem;
-            border-bottom: 1px solid var(--border);
+            font-size: 0.875rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: rgba(255,255,255,0.5);
+            margin-bottom: 1rem;
         }
-        .install-box {
-            background: #161b22;
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            padding: 1rem;
-            margin: 1rem 0;
+
+        .install-card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            transition: all 0.2s;
         }
-        .install-box .label {
-            color: var(--muted);
-            font-size: 0.85rem;
+
+        .install-card:hover {
+            background: rgba(255,255,255,0.08);
+            border-color: rgba(255,255,255,0.2);
+        }
+
+        .install-label {
+            font-size: 0.75rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: rgba(255,255,255,0.4);
             margin-bottom: 0.5rem;
         }
-        .install-box code {
-            display: block;
-            font-family: 'SF Mono', Consolas, monospace;
+
+        .install-code {
+            font-family: 'JetBrains Mono', monospace;
             font-size: 0.9rem;
-            color: var(--green);
+            color: #a5b4fc;
+            word-break: break-all;
         }
+
+        .commands {
+            display: grid;
+            gap: 0.75rem;
+            margin-bottom: 3rem;
+        }
+
+        .command {
+            display: flex;
+            gap: 1rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            padding: 0.75rem 1rem;
+            background: rgba(255,255,255,0.03);
+            border-radius: 8px;
+        }
+
+        .command-name {
+            color: #a5b4fc;
+            min-width: 140px;
+        }
+
+        .command-desc {
+            color: rgba(255,255,255,0.5);
+        }
+
         .features {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin: 1rem 0;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+            margin-bottom: 3rem;
         }
+
         .feature {
-            background: #161b22;
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            padding: 1rem;
+            text-align: center;
+            padding: 1.5rem 1rem;
         }
+
+        .feature-icon {
+            font-size: 2rem;
+            margin-bottom: 0.75rem;
+        }
+
         .feature h3 {
             font-size: 1rem;
+            font-weight: 600;
             margin-bottom: 0.5rem;
         }
+
         .feature p {
-            color: var(--muted);
-            font-size: 0.9rem;
+            font-size: 0.875rem;
+            color: rgba(255,255,255,0.6);
         }
-        a { color: var(--accent); text-decoration: none; }
-        a:hover { text-decoration: underline; }
+
         .links {
-            margin-top: 2rem;
-            padding-top: 1rem;
-            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            padding-top: 2rem;
+            border-top: 1px solid rgba(255,255,255,0.1);
         }
+
         .links a {
-            margin-right: 1.5rem;
-        }
-        code.inline {
-            background: #161b22;
-            padding: 0.2rem 0.4rem;
-            border-radius: 4px;
+            color: rgba(255,255,255,0.6);
+            text-decoration: none;
             font-size: 0.9rem;
+            transition: color 0.2s;
         }
+
+        .links a:hover {
+            color: #fff;
+        }
+
         @media (max-width: 600px) {
-            pre.banner { font-size: 0.45rem; }
-            body { padding: 1rem; }
+            .container { padding: 2rem 1.5rem; }
+            .logo { font-size: 2rem; }
+            .tagline { font-size: 1rem; }
+            .features { grid-template-columns: 1fr; }
+            .command { flex-direction: column; gap: 0.25rem; }
+            .command-name { min-width: auto; }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <pre class="banner">
-  ████████╗ █████╗ ██╗     ██╗  ██╗   ██╗
-  ╚══██╔══╝██╔══██╗██║     ██║  ╚██╗ ██╔╝
-     ██║   ███████║██║     ██║   ╚████╔╝
-     ██║   ██╔══██║██║     ██║    ╚██╔╝
-     ██║   ██║  ██║███████╗███████╗██║
-     ╚═╝   ╚═╝  ╚═╝╚══════╝╚══════╝╚═╝
-        </pre>
-
-        <h1>Tally</h1>
-        <p class="tagline">Let AI classify your transactions - LLM-powered spending categorization</p>
-
-        <h2>Install</h2>
-
-        <div class="install-box">
-            <div class="label">Linux / macOS</div>
-            <code>curl -fsSL https://raw.githubusercontent.com/davidfowl/tally/main/install.sh | bash</code>
+        <div class="hero">
+            <div class="logo">tally</div>
+            <p class="tagline">Let AI classify your transactions. LLM-powered spending categorization.</p>
         </div>
 
-        <div class="install-box">
-            <div class="label">Windows (PowerShell)</div>
-            <code>irm https://raw.githubusercontent.com/davidfowl/tally/main/install.ps1 | iex</code>
+        <div class="install-section">
+            <h2>Install</h2>
+
+            <div class="install-card">
+                <div class="install-label">Linux / macOS</div>
+                <div class="install-code">curl -fsSL https://raw.githubusercontent.com/davidfowl/tally/main/install.sh | bash</div>
+            </div>
+
+            <div class="install-card">
+                <div class="install-label">Windows PowerShell</div>
+                <div class="install-code">irm https://raw.githubusercontent.com/davidfowl/tally/main/install.ps1 | iex</div>
+            </div>
+
+            <div class="install-card">
+                <div class="install-label">Python (uv)</div>
+                <div class="install-code">uv tool install git+https://github.com/davidfowl/tally</div>
+            </div>
         </div>
 
-        <div class="install-box">
-            <div class="label">With uv (Python)</div>
-            <code>uv tool install git+https://github.com/davidfowl/tally</code>
-        </div>
-
-        <h2>Quick Start</h2>
-        <div class="install-box">
-            <code>tally init ./my-budget</code>
-            <code style="color: var(--muted); margin-top: 0.5rem;"># Add your bank exports to my-budget/data/</code>
-            <code style="color: var(--muted);"># Configure my-budget/config/settings.yaml</code>
-            <code style="margin-top: 0.5rem;">tally run</code>
+        <h2>Commands</h2>
+        <div class="commands">
+            <div class="command">
+                <span class="command-name">tally init</span>
+                <span class="command-desc">Set up a new budget folder</span>
+            </div>
+            <div class="command">
+                <span class="command-name">tally run</span>
+                <span class="command-desc">Generate spending report</span>
+            </div>
+            <div class="command">
+                <span class="command-name">tally discover</span>
+                <span class="command-desc">Find uncategorized transactions</span>
+            </div>
+            <div class="command">
+                <span class="command-name">tally inspect</span>
+                <span class="command-desc">Analyze CSV structure</span>
+            </div>
         </div>
 
         <h2>How It Works</h2>
         <div class="features">
             <div class="feature">
+                <div class="feature-icon">🤖</div>
                 <h3>AI Understands</h3>
-                <p>LLMs know "WHOLEFDS MKT" is Whole Foods. They understand merchant codes humans built databases for.</p>
+                <p>LLMs know what merchants are from messy bank descriptions</p>
             </div>
             <div class="feature">
+                <div class="feature-icon">💬</div>
                 <h3>You Describe</h3>
-                <p>Tell the AI your rules in plain English: "Costco purchases over $200 are bulk shopping"</p>
+                <p>Tell the AI your rules in plain English</p>
             </div>
             <div class="feature">
+                <div class="feature-icon">⚡</div>
                 <h3>Tally Executes</h3>
-                <p>Pattern matching runs in milliseconds. 720 built-in rules + your custom ones.</p>
+                <p>720 built-in rules plus your custom patterns</p>
             </div>
-        </div>
-
-        <h2>Commands</h2>
-        <div class="install-box">
-            <code>tally init [dir]      <span style="color: var(--muted)"># Set up budget folder</span></code>
-            <code>tally run             <span style="color: var(--muted)"># Generate spending report</span></code>
-            <code>tally discover        <span style="color: var(--muted)"># Find uncategorized merchants</span></code>
-            <code>tally inspect &lt;csv&gt;   <span style="color: var(--muted)"># Analyze CSV structure</span></code>
-            <code>tally diag            <span style="color: var(--muted)"># Debug configuration</span></code>
         </div>
 
         <div class="links">
             <a href="https://github.com/davidfowl/tally">GitHub</a>
             <a href="https://github.com/davidfowl/tally/releases">Releases</a>
-            <a href="https://github.com/davidfowl/tally#readme">Documentation</a>
+            <a href="https://github.com/davidfowl/tally#readme">Docs</a>
         </div>
     </div>
 </body>
