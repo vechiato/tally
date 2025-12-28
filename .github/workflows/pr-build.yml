@@ -3,6 +3,12 @@ name: PR Build
 on:
   pull_request_target:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to build'
+        required: true
+        type: number
 
 jobs:
   build:
@@ -20,9 +26,27 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
+      - name: Get PR info
+        id: pr
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            PR_NUMBER="${{ inputs.pr_number }}"
+            PR_DATA=$(gh api repos/${{ github.repository }}/pulls/$PR_NUMBER)
+            HEAD_SHA=$(echo "$PR_DATA" | jq -r '.head.sha')
+          else
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          fi
+          echo "number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          echo "sha=$HEAD_SHA" >> $GITHUB_OUTPUT
+          echo "short_sha=${HEAD_SHA:0:7}" >> $GITHUB_OUTPUT
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ steps.pr.outputs.sha }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@v4
@@ -36,11 +60,9 @@ jobs:
       - name: Inject PR version info
         run: |
           # PR version: 0.0.<pr_number>-<short_sha>
-          SHORT_SHA="${{ github.event.pull_request.head.sha }}"
-          SHORT_SHA="${SHORT_SHA:0:7}"
-          PR_VERSION="0.0.${{ github.event.pull_request.number }}-${SHORT_SHA}"
+          PR_VERSION="0.0.${{ steps.pr.outputs.number }}-${{ steps.pr.outputs.short_sha }}"
           sed -i.bak "s/^VERSION = .*/VERSION = \"${PR_VERSION}\"/" src/tally/_version.py
-          sed -i.bak "s/^GIT_SHA = .*/GIT_SHA = \"${{ github.event.pull_request.head.sha }}\"/" src/tally/_version.py
+          sed -i.bak "s/^GIT_SHA = .*/GIT_SHA = \"${{ steps.pr.outputs.sha }}\"/" src/tally/_version.py
           sed -i.bak "s|^REPO_URL = .*|REPO_URL = \"https://github.com/${{ github.repository }}\"|" src/tally/_version.py
           rm -f src/tally/_version.py.bak
           cat src/tally/_version.py
@@ -74,12 +96,27 @@ jobs:
       pull-requests: write
 
     steps:
+      - name: Get PR info
+        id: pr
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            PR_NUMBER="${{ inputs.pr_number }}"
+            PR_DATA=$(gh api repos/${{ github.repository }}/pulls/$PR_NUMBER)
+            HEAD_SHA=$(echo "$PR_DATA" | jq -r '.head.sha')
+          else
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          fi
+          echo "number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          echo "short_sha=${HEAD_SHA:0:7}" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       - name: Build comment body
         run: |
-          PR_NUMBER="${{ github.event.pull_request.number }}"
+          PR_NUMBER="${{ steps.pr.outputs.number }}"
           RUN_ID="${{ github.run_id }}"
-          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
-          SHORT_SHA="${HEAD_SHA:0:7}"
+          SHORT_SHA="${{ steps.pr.outputs.short_sha }}"
 
           cat > comment.md << 'EOF'
           ## PR Build Available
@@ -121,7 +158,7 @@ jobs:
         uses: peter-evans/find-comment@v3
         id: find
         with:
-          issue-number: ${{ github.event.pull_request.number }}
+          issue-number: ${{ steps.pr.outputs.number }}
           comment-author: 'github-actions[bot]'
           body-includes: '## PR Build Available'
 
@@ -129,6 +166,6 @@ jobs:
         uses: peter-evans/create-or-update-comment@v4
         with:
           comment-id: ${{ steps.find.outputs.comment-id }}
-          issue-number: ${{ github.event.pull_request.number }}
+          issue-number: ${{ steps.pr.outputs.number }}
           body-path: comment.md
           edit-mode: replace
