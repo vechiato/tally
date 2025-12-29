@@ -54,10 +54,8 @@ detect_arch() {
 # Get release version (latest stable or dev prerelease)
 get_release_version() {
     if [ "$PRERELEASE" = true ]; then
-        # Get dev prerelease by tag
-        curl -fsSL "https://api.github.com/repos/${REPO}/releases/tags/dev" |
-            grep '"tag_name":' |
-            sed -E 's/.*"([^"]+)".*/\1/'
+        # Dev prerelease always uses 'dev' tag - no API call needed
+        echo "dev"
     else
         # Get latest stable release
         curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" |

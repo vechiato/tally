@@ -24,8 +24,8 @@ if ($Prerelease) {
 # Get release version
 try {
     if ($Prerelease) {
-        $Release = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/tags/dev"
-        $Version = $Release.tag_name
+        # Dev prerelease always uses 'dev' tag - no API call needed
+        $Version = "dev"
         Write-Info "Development build: $Version"
     } else {
         $Release = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest"
@@ -33,11 +33,7 @@ try {
         Write-Info "Latest version: $Version"
     }
 } catch {
-    if ($Prerelease) {
-        Write-Err "No development build found. Dev builds are created on each push to main."
-    } else {
-        Write-Err "Could not determine latest version. Check https://github.com/$Repo/releases"
-    }
+    Write-Err "Could not determine latest version. Check https://github.com/$Repo/releases"
 }
 
 # Download
