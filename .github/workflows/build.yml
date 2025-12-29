@@ -92,5 +92,5 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tally-${{ matrix.platform }}
+          name: tally-${{ matrix.platform }}-${{ contains(inputs.version, 'dev') && 'dev' || 'rc' }}
           path: dist/tally-${{ matrix.platform }}.zip

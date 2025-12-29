@@ -1,6 +1,7 @@
 name: Tests
 
 on:
+  workflow_call:  # Can be called by other workflows
   push:
     branches: [main]
   pull_request:

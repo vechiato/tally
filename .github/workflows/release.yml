@@ -8,46 +8,62 @@ on:
         required: false
         type: string
         default: ''
-      draft:
-        description: 'Create as draft release for review'
-        required: false
-        type: boolean
-        default: true
 
 jobs:
-  prepare:
-    runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.version.outputs.version }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Get version
-        id: version
-        run: |
-          COMMIT_COUNT=$(git rev-list --count HEAD)
-          echo "version=0.1.${COMMIT_COUNT}" >> $GITHUB_OUTPUT
-          echo "Version: 0.1.${COMMIT_COUNT}"
-
-  build:
-    needs: prepare
-    uses: ./.github/workflows/build.yml
-    with:
-      version: ${{ needs.prepare.outputs.version }}
-      git_sha: ${{ github.sha }}
-      fetch_depth: 0
-
-  release:
-    needs: [prepare, build]
+  publish:
     runs-on: ubuntu-latest
     permissions:
       contents: write
 
     steps:
+      - name: Find latest draft release
+        id: draft
+        run: |
+          DRAFT=$(gh release list --json tagName,isDraft \
+            -q '[.[] | select(.isDraft)] | .[0].tagName')
+          if [ -z "$DRAFT" ] || [ "$DRAFT" = "null" ]; then
+            echo "::error::No draft release found! Push to main first to create a release candidate."
+            exit 1
+          fi
+          echo "tag=$DRAFT" >> $GITHUB_OUTPUT
+          echo "Found draft release: $DRAFT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Get draft release info
+        id: info
+        run: |
+          SHA=$(gh release view ${{ steps.draft.outputs.tag }} \
+            --json targetCommitish -q '.targetCommitish')
+          echo "sha=$SHA" >> $GITHUB_OUTPUT
+          echo "Commit: $SHA"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Verify E2E passed
+        run: |
+          echo "Checking E2E status for commit ${{ steps.info.outputs.sha }}..."
+
+          STATUS=$(gh run list \
+            --commit ${{ steps.info.outputs.sha }} \
+            --workflow "E2E Smoke Test" \
+            --json conclusion \
+            -q '.[0].conclusion')
+
+          echo "E2E conclusion: $STATUS"
+
+          if [ "$STATUS" != "success" ]; then
+            echo "::error::E2E tests did not pass for commit ${{ steps.info.outputs.sha }}"
+            echo "Status was: $STATUS"
+            echo ""
+            echo "The release candidate cannot be published until E2E tests pass."
+            exit 1
+          fi
+          echo "E2E tests passed!"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       - name: Build release body
-        id: body
         env:
           RELEASE_NOTES: ${{ inputs.release_notes }}
         run: |
@@ -72,32 +88,23 @@ jobs:
             echo "irm https://tallyai.money/install.ps1 | iex"
             echo '```'
             echo ""
-            echo "Or download the zip for your platform from the assets below."
+            echo "Or download the zip for your platform below."
             echo ""
             echo "See https://tallyai.money for more info."
           } > body.md
-          echo "content<<EOF" >> $GITHUB_OUTPUT
-          cat body.md >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
+          echo "Release body:"
+          cat body.md
 
-      - name: List artifacts
-        run: find artifacts -type f
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ needs.prepare.outputs.version }}
-          name: Tally v${{ needs.prepare.outputs.version }}
-          draft: ${{ inputs.draft }}
-          prerelease: false
-          files: |
-            artifacts/tally-linux-amd64/tally-linux-amd64.zip
-            artifacts/tally-macos-amd64/tally-macos-amd64.zip
-            artifacts/tally-macos-arm64/tally-macos-arm64.zip
-            artifacts/tally-windows-amd64/tally-windows-amd64.zip
-          body: ${{ steps.body.outputs.content }}
+      - name: Publish release
+        run: |
+          gh release edit ${{ steps.draft.outputs.tag }} \
+            --title "Tally ${{ steps.draft.outputs.tag }}" \
+            --notes-file body.md \
+            --draft=false \
+            --latest
+          echo ""
+          echo "Published ${{ steps.draft.outputs.tag }} as latest release!"
+          echo "View at: https://github.com/${{ github.repository }}/releases/tag/${{ steps.draft.outputs.tag }}"
+        env:
+          GH_TOKEN: ${{ github.token }}

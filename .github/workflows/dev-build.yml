@@ -5,7 +5,12 @@ on:
     branches: [main]
 
 jobs:
+  # Run tests first - gate the build
+  tests:
+    uses: ./.github/workflows/test.yml
+
   prepare:
+    needs: [tests]
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -14,9 +19,18 @@ jobs:
         with:
           fetch-depth: 0
       - id: version
-        run: echo "version=0.1.$(git rev-list --count HEAD)-dev" >> $GITHUB_OUTPUT
+        run: echo "version=0.1.$(git rev-list --count HEAD)" >> $GITHUB_OUTPUT
 
-  build:
+  # Build dev version
+  build-dev:
+    needs: prepare
+    uses: ./.github/workflows/build.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}-dev
+      git_sha: ${{ github.sha }}
+
+  # Build RC version (same commit, stable version number)
+  build-rc:
     needs: prepare
     uses: ./.github/workflows/build.yml
     with:
@@ -24,34 +38,71 @@ jobs:
       git_sha: ${{ github.sha }}
 
   release:
-    needs: [prepare, build]
+    needs: [prepare, build-dev, build-rc]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download artifacts
+      # Download dev artifacts
+      - name: Download dev artifacts
         uses: actions/download-artifact@v4
         with:
-          path: artifacts
+          path: dev-artifacts
+          pattern: tally-*-dev
+          merge-multiple: false
 
-      - name: Delete existing dev release
-        run: gh release delete dev --cleanup-tag --yes || true
+      # Download RC artifacts
+      - name: Download RC artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: rc-artifacts
+          pattern: tally-*-rc
+          merge-multiple: false
+
+      - name: List artifacts
+        run: |
+          echo "Dev artifacts:"
+          find dev-artifacts -type f
+          echo ""
+          echo "RC artifacts:"
+          find rc-artifacts -type f
+
+      # Delete old dev release and create new one
+      - name: Create dev release
+        run: |
+          gh release delete dev --cleanup-tag --yes || true
+          gh release create dev \
+            --title "Development Build (${{ needs.prepare.outputs.version }}-dev)" \
+            --notes "Latest build from main branch
+
+**Version:** ${{ needs.prepare.outputs.version }}-dev
+**Commit:** ${{ github.sha }}
+
+Install: \`curl -fsSL https://tallyai.money/install.sh | bash -s -- --prerelease\`" \
+            --prerelease \
+            dev-artifacts/*/*.zip
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create dev release
+      # Delete old draft releases and create new one
+      - name: Create draft RC release
         run: |
-          gh release create dev \
-            --title "Development Build (${{ needs.prepare.outputs.version }})" \
-            --notes "Latest build from main branch
+          # Delete any existing drafts
+          for tag in $(gh release list --json tagName,isDraft -q '.[] | select(.isDraft) | .tagName'); do
+            echo "Deleting draft release: $tag"
+            gh release delete "$tag" --yes || true
+          done
 
-          **Version:** ${{ needs.prepare.outputs.version }}
-          **Commit:** ${{ github.sha }}
+          # Create new draft
+          gh release create v${{ needs.prepare.outputs.version }} \
+            --title "Tally v${{ needs.prepare.outputs.version }}" \
+            --notes "Release candidate - pending publish
 
-          Install: \`tally update --prerelease\`" \
-            --prerelease \
-            artifacts/*/*.zip
+**Commit:** ${{ github.sha }}
+**E2E Status:** Pending..." \
+            --draft \
+            rc-artifacts/*/*.zip
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
