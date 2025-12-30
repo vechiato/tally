@@ -3,8 +3,13 @@ name: Release
 on:
   workflow_dispatch:
     inputs:
+      use_existing_notes:
+        description: 'Keep the AI-generated notes from the draft release'
+        required: false
+        type: boolean
+        default: true
       release_notes:
-        description: 'Release notes (what changed in this release)'
+        description: 'Release notes (ignored if use_existing_notes is true)'
         required: false
         type: string
         default: ''
@@ -70,13 +75,38 @@ jobs:
 
       - name: Build release body
         env:
+          USE_EXISTING: ${{ inputs.use_existing_notes }}
           RELEASE_NOTES: ${{ inputs.release_notes }}
+          TAG: ${{ steps.draft.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          {
+          # Get the release notes content
+          if [ "$USE_EXISTING" = "true" ]; then
+            echo "Using existing notes from draft release..."
+            # Fetch existing draft body and extract content before the --- separator
+            EXISTING=$(gh release view "$TAG" --json body -q '.body')
+            # Extract everything up to the --- line (the AI notes section)
+            NOTES_CONTENT=$(echo "$EXISTING" | sed '/^---$/,$d' | sed '/^[[:space:]]*$/d')
+            if [ -n "$NOTES_CONTENT" ]; then
+              echo "Found existing notes"
+            else
+              echo "No existing notes found, will use minimal body"
+            fi
+          else
+            echo "Using provided release notes..."
             if [ -n "$RELEASE_NOTES" ]; then
-              echo "## What's Changed"
-              echo ""
-              echo "$RELEASE_NOTES"
+              NOTES_CONTENT="## What's Changed
+
+          $RELEASE_NOTES"
+            else
+              NOTES_CONTENT=""
+            fi
+          fi
+
+          # Build final body with install instructions
+          {
+            if [ -n "$NOTES_CONTENT" ]; then
+              echo "$NOTES_CONTENT"
               echo ""
               echo "---"
               echo ""

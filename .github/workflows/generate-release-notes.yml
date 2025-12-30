@@ -1,0 +1,93 @@
+name: Generate Release Notes
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'Version being released'
+        required: true
+        type: string
+    secrets:
+      ANTHROPIC_API_KEY:
+        required: false
+      CLAUDE_CODE_OAUTH_TOKEN:
+        required: false
+    outputs:
+      notes:
+        description: 'Generated release notes (markdown)'
+        value: ${{ jobs.generate.outputs.notes }}
+      generated:
+        description: 'Whether notes were generated (true/false)'
+        value: ${{ jobs.generate.outputs.generated }}
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    outputs:
+      notes: ${{ steps.output.outputs.notes }}
+      generated: ${{ steps.output.outputs.generated }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if auth is configured
+        id: auth
+        run: |
+          if [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ] || [ -n "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}" ]; then
+            echo "has_auth=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_auth=false" >> $GITHUB_OUTPUT
+            echo "No Anthropic authentication configured, skipping AI release notes"
+          fi
+
+      - name: Generate release notes with Claude
+        id: claude
+        if: steps.auth.outputs.has_auth == 'true'
+        continue-on-error: true
+        uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            Generate release notes for version ${{ inputs.version }}.
+
+            Use git and gh CLI to analyze changes since the last release:
+            - Run `git describe --tags --abbrev=0 HEAD^` to find the last release tag
+            - Run `git log <last_tag>..HEAD --oneline` to see commits
+            - Use `gh pr list --state merged --limit 50` to see recent merged PRs
+            - Look at PR titles and descriptions for context
+
+            Guidelines:
+            - Focus on user-facing changes only
+            - Group by: New Features, Improvements, Bug Fixes (only include sections that have items)
+            - Skip CI/workflow/doc-only changes unless significant
+            - Be concise (1-2 sentences per item)
+            - Use markdown formatting with bullet points
+            - If no user-facing changes, just say "Internal improvements and bug fixes"
+
+            Return the release notes as a markdown string.
+          claude_args: |
+            --max-turns 10
+            --json-schema '{"type":"object","properties":{"notes":{"type":"string"}},"required":["notes"]}'
+
+      - name: Set outputs
+        id: output
+        run: |
+          STRUCTURED='${{ steps.claude.outputs.structured_output }}'
+          if [ -n "$STRUCTURED" ] && [ "$STRUCTURED" != "null" ] && [ "$STRUCTURED" != "" ]; then
+            NOTES=$(echo "$STRUCTURED" | jq -r '.notes // empty')
+            if [ -n "$NOTES" ]; then
+              echo "notes<<EOF" >> $GITHUB_OUTPUT
+              echo "$NOTES" >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+              echo "generated=true" >> $GITHUB_OUTPUT
+              echo "Release notes generated successfully"
+              exit 0
+            fi
+          fi
+          echo "notes=" >> $GITHUB_OUTPUT
+          echo "generated=false" >> $GITHUB_OUTPUT
+          echo "No release notes generated (auth not configured or generation failed)"

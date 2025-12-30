@@ -37,8 +37,19 @@ jobs:
       version: ${{ needs.prepare.outputs.version }}
       git_sha: ${{ github.sha }}
 
+  # Generate release notes with AI (optional - only if auth is configured)
+  generate-notes:
+    needs: [prepare, build-rc]
+    uses: ./.github/workflows/generate-release-notes.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
   release:
-    needs: [prepare, build-dev, build-rc]
+    needs: [prepare, build-dev, build-rc, generate-notes]
+    if: ${{ always() && needs.build-dev.result == 'success' && needs.build-rc.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -116,6 +127,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ needs.prepare.outputs.version }}
           SHA: ${{ github.sha }}
+          AI_NOTES: ${{ needs.generate-notes.outputs.notes }}
         run: |
           # Delete any existing drafts
           for tag in $(gh release list --json tagName,isDraft -q '.[] | select(.isDraft) | .tagName'); do
@@ -123,12 +135,28 @@ jobs:
             gh release delete "$tag" --yes || true
           done
 
-          cat > notes.md << EOF
+          # Use AI-generated notes if available, otherwise use default
+          if [ -n "$AI_NOTES" ]; then
+            echo "Using AI-generated release notes"
+            cat > notes.md << EOF
+          ## What's Changed
+
+          ${AI_NOTES}
+
+          ---
+
+          **Commit:** ${SHA}
+          **E2E Status:** Pending...
+          EOF
+          else
+            echo "No AI notes available, using default"
+            cat > notes.md << EOF
           Release candidate - pending publish
 
           **Commit:** ${SHA}
           **E2E Status:** Pending...
           EOF
+          fi
 
           # Create new draft
           gh release create "v${VERSION}" \
