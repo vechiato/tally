@@ -267,3 +267,160 @@ class TestInOperator:
         txn = {'description': 'UBER RIDES', 'amount': 25.00}
         assert matches_transaction('"EATS" not in description', txn)
         assert not matches_transaction('"UBER" not in description', txn)
+
+
+class TestNormalizedFunction:
+    """Tests for the normalized() function."""
+
+    def test_normalized_ignores_spaces(self):
+        """normalized() matches ignoring spaces."""
+        txn = {'description': 'UBER EATS ORDER', 'amount': 25.00}
+        assert matches_transaction('normalized("UBEREATS")', txn)
+        assert matches_transaction('normalized("UBER EATS")', txn)
+
+    def test_normalized_ignores_hyphens(self):
+        """normalized() matches ignoring hyphens."""
+        txn = {'description': 'COCA-COLA PURCHASE', 'amount': 5.00}
+        assert matches_transaction('normalized("COCACOLA")', txn)
+        assert matches_transaction('normalized("COCA-COLA")', txn)
+        assert matches_transaction('normalized("COCA COLA")', txn)
+
+    def test_normalized_ignores_apostrophes(self):
+        """normalized() matches ignoring apostrophes."""
+        txn = {'description': "MCDONALD'S RESTAURANT", 'amount': 12.00}
+        assert matches_transaction('normalized("MCDONALDS")', txn)
+        assert matches_transaction("normalized(\"MCDONALD'S\")", txn)
+
+    def test_normalized_ignores_periods(self):
+        """normalized() matches ignoring periods."""
+        txn = {'description': 'NETFLIX.COM STREAMING', 'amount': 15.99}
+        assert matches_transaction('normalized("NETFLIXCOM")', txn)
+        assert matches_transaction('normalized("NETFLIX.COM")', txn)
+
+    def test_normalized_case_insensitive(self):
+        """normalized() is case insensitive."""
+        txn = {'description': 'Uber Eats', 'amount': 25.00}
+        assert matches_transaction('normalized("ubereats")', txn)
+        assert matches_transaction('normalized("UBEREATS")', txn)
+
+    def test_normalized_no_match(self):
+        """normalized() returns False when pattern not found."""
+        txn = {'description': 'AMAZON PURCHASE', 'amount': 45.00}
+        assert not matches_transaction('normalized("UBEREATS")', txn)
+
+
+class TestAnyofFunction:
+    """Tests for the anyof() function."""
+
+    def test_anyof_first_match(self):
+        """anyof() matches first pattern."""
+        txn = {'description': 'NETFLIX STREAMING', 'amount': 15.99}
+        assert matches_transaction('anyof("NETFLIX", "HULU", "DISNEY")', txn)
+
+    def test_anyof_middle_match(self):
+        """anyof() matches middle pattern."""
+        txn = {'description': 'HULU SUBSCRIPTION', 'amount': 12.99}
+        assert matches_transaction('anyof("NETFLIX", "HULU", "DISNEY")', txn)
+
+    def test_anyof_last_match(self):
+        """anyof() matches last pattern."""
+        txn = {'description': 'DISNEY PLUS', 'amount': 9.99}
+        assert matches_transaction('anyof("NETFLIX", "HULU", "DISNEY")', txn)
+
+    def test_anyof_no_match(self):
+        """anyof() returns False when no pattern matches."""
+        txn = {'description': 'AMAZON PRIME', 'amount': 14.99}
+        assert not matches_transaction('anyof("NETFLIX", "HULU", "DISNEY")', txn)
+
+    def test_anyof_case_insensitive(self):
+        """anyof() is case insensitive."""
+        txn = {'description': 'Netflix Streaming', 'amount': 15.99}
+        assert matches_transaction('anyof("NETFLIX", "HULU")', txn)
+        assert matches_transaction('anyof("netflix", "hulu")', txn)
+
+    def test_anyof_two_patterns(self):
+        """anyof() works with two patterns."""
+        uber = {'description': 'UBER RIDES', 'amount': 20.00}
+        lyft = {'description': 'LYFT RIDE', 'amount': 18.00}
+        taxi = {'description': 'YELLOW CAB', 'amount': 25.00}
+
+        expr = 'anyof("UBER", "LYFT")'
+        assert matches_transaction(expr, uber)
+        assert matches_transaction(expr, lyft)
+        assert not matches_transaction(expr, taxi)
+
+
+class TestStartswithFunction:
+    """Tests for the startswith() function."""
+
+    def test_startswith_match(self):
+        """startswith() matches at beginning."""
+        txn = {'description': 'AMAZON MARKETPLACE', 'amount': 45.00}
+        assert matches_transaction('startswith("AMAZON")', txn)
+
+    def test_startswith_no_match_middle(self):
+        """startswith() doesn't match in middle."""
+        txn = {'description': 'BUY AMAZON GIFT CARD', 'amount': 50.00}
+        assert not matches_transaction('startswith("AMAZON")', txn)
+
+    def test_startswith_case_insensitive(self):
+        """startswith() is case insensitive."""
+        txn = {'description': 'Amazon Purchase', 'amount': 45.00}
+        assert matches_transaction('startswith("AMAZON")', txn)
+        assert matches_transaction('startswith("amazon")', txn)
+
+    def test_startswith_vs_contains(self):
+        """startswith() is stricter than contains()."""
+        txn = {'description': 'APPLE PAY AMAZON', 'amount': 30.00}
+        # contains would match, startswith should not
+        assert matches_transaction('contains("AMAZON")', txn)
+        assert not matches_transaction('startswith("AMAZON")', txn)
+        # But APPLE PAY should match startswith
+        assert matches_transaction('startswith("APPLE")', txn)
+
+
+class TestFuzzyFunction:
+    """Tests for the fuzzy() function."""
+
+    def test_fuzzy_exact_match(self):
+        """fuzzy() matches exact strings."""
+        txn = {'description': 'MARKETPLACE PURCHASE', 'amount': 50.00}
+        assert matches_transaction('fuzzy("MARKETPLACE")', txn)
+
+    def test_fuzzy_catches_typo(self):
+        """fuzzy() catches common typos."""
+        # Missing letter
+        txn = {'description': 'MARKEPLACE ORDER', 'amount': 50.00}  # missing 'T'
+        assert matches_transaction('fuzzy("MARKETPLACE")', txn)
+
+    def test_fuzzy_catches_transposition(self):
+        """fuzzy() catches letter transpositions."""
+        txn = {'description': 'AMZAON PURCHASE', 'amount': 45.00}  # transposed Z and A
+        assert matches_transaction('fuzzy("AMAZON")', txn)
+
+    def test_fuzzy_no_match_very_different(self):
+        """fuzzy() doesn't match very different strings."""
+        txn = {'description': 'NETFLIX STREAMING', 'amount': 15.99}
+        assert not matches_transaction('fuzzy("AMAZON")', txn)
+
+    def test_fuzzy_custom_threshold(self):
+        """fuzzy() respects custom threshold."""
+        # MARKEPLACE (missing T) is 95% similar to MARKETPLACE
+        txn = {'description': 'MARKEPLACE ORDER', 'amount': 50.00}
+        # Default threshold (0.80) should match
+        assert matches_transaction('fuzzy("MARKETPLACE")', txn)
+        # Higher threshold should still match (95% similar)
+        assert matches_transaction('fuzzy("MARKETPLACE", 0.90)', txn)
+        # Very high threshold won't match
+        assert not matches_transaction('fuzzy("MARKETPLACE", 0.99)', txn)
+
+    def test_fuzzy_case_insensitive(self):
+        """fuzzy() is case insensitive."""
+        txn = {'description': 'Amazon Purchase', 'amount': 45.00}
+        assert matches_transaction('fuzzy("AMAZON")', txn)
+        assert matches_transaction('fuzzy("amazon")', txn)
+
+    def test_fuzzy_in_longer_description(self):
+        """fuzzy() finds match within longer description."""
+        txn = {'description': 'PAYMENT TO AMZAON SERVICES', 'amount': 100.00}
+        assert matches_transaction('fuzzy("AMAZON")', txn)

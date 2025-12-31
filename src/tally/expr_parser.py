@@ -165,6 +165,10 @@ class TransactionContext:
         self.functions: Dict[str, Callable] = {
             'contains': self._fn_contains,
             'regex': self._fn_regex,
+            'normalized': self._fn_normalized,
+            'anyof': self._fn_anyof,
+            'startswith': self._fn_startswith,
+            'fuzzy': self._fn_fuzzy,
             'abs': abs,
             'round': round,
         }
@@ -179,6 +183,51 @@ class TransactionContext:
             return bool(re.search(pattern, self.description, re.IGNORECASE))
         except re.error as e:
             raise ExpressionError(f"Invalid regex pattern: {e}")
+
+    def _fn_normalized(self, pattern: str) -> bool:
+        """
+        Check if description contains pattern after normalizing both.
+        Normalization removes spaces, hyphens, apostrophes, and other punctuation.
+        Useful for matching variations like 'UBER EATS' vs 'UBEREATS'.
+        """
+        def normalize(s: str) -> str:
+            # Remove spaces, hyphens, apostrophes, periods, asterisks
+            return re.sub(r"[\s\-'.*]+", '', s.upper())
+        return normalize(pattern) in normalize(self.description)
+
+    def _fn_anyof(self, *patterns: str) -> bool:
+        """
+        Check if description contains any of the given patterns (case-insensitive).
+        Cleaner syntax for: contains("A") or contains("B") or contains("C")
+        """
+        desc_upper = self.description.upper()
+        return any(p.upper() in desc_upper for p in patterns)
+
+    def _fn_startswith(self, pattern: str) -> bool:
+        """
+        Check if description starts with pattern (case-insensitive).
+        Useful for prefix matching without catching mid-string matches.
+        """
+        return self.description.upper().startswith(pattern.upper())
+
+    def _fn_fuzzy(self, pattern: str, threshold: float = 0.80) -> bool:
+        """
+        Check if description is similar to pattern using fuzzy matching.
+        Useful for catching typos like 'MARKEPLACE' vs 'MARKETPLACE'.
+        Threshold is similarity ratio (0.0 to 1.0), default 0.80.
+        """
+        from difflib import SequenceMatcher
+        desc_upper = self.description.upper()
+        pattern_upper = pattern.upper()
+        # Check if pattern appears as substring with fuzzy match
+        # Slide a window of pattern length across description
+        if len(pattern_upper) > len(desc_upper):
+            return SequenceMatcher(None, desc_upper, pattern_upper).ratio() >= threshold
+        for i in range(len(desc_upper) - len(pattern_upper) + 1):
+            window = desc_upper[i:i + len(pattern_upper)]
+            if SequenceMatcher(None, window, pattern_upper).ratio() >= threshold:
+                return True
+        return False
 
     @classmethod
     def from_transaction(cls, txn: Dict, variables: Optional[Dict[str, Any]] = None) -> 'TransactionContext':

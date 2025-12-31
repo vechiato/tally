@@ -393,6 +393,11 @@ STARTER_MERCHANTS = '''# Tally Merchant Rules
 # Match expressions:
 #   contains("X")     - Case-insensitive substring match
 #   regex("pattern")  - Regex pattern match
+#   normalized("X")   - Match ignoring spaces/hyphens/punctuation
+#   anyof("A", "B")   - Match any of multiple patterns
+#   startswith("X")   - Match only at beginning
+#   fuzzy("X")        - Approximate matching (catches typos)
+#   fuzzy("X", 0.85)  - Fuzzy with custom threshold (default 0.80)
 #   amount > 100      - Amount conditions
 #   month == 12       - Date component (month, year, day)
 #   date >= "2025-01-01"  - Date range
@@ -428,6 +433,16 @@ STARTER_MERCHANTS = '''# Tally Merchant Rules
 # match: regex("UBER\\s(?!EATS)")  # Uber but not Uber Eats
 # category: Transportation
 # subcategory: Rideshare
+
+# [Uber Eats]
+# match: normalized("UBEREATS")  # Matches "UBER EATS", "UBER-EATS", etc.
+# category: Food
+# subcategory: Delivery
+
+# [Streaming Services]
+# match: anyof("NETFLIX", "HULU", "DISNEY+", "HBO")
+# category: Subscriptions
+# subcategory: Streaming
 
 # === Add your rules below ===
 
@@ -2349,6 +2364,10 @@ def cmd_workflow(args):
     funcs = [
         ('contains("X")', "Case-insensitive substring match"),
         ('regex("pattern")', "Regex pattern match"),
+        ('normalized("X")', "Match ignoring spaces/hyphens/punctuation"),
+        ('anyof("A", "B")', "Match any of multiple patterns"),
+        ('startswith("X")', "Match only at beginning"),
+        ('fuzzy("X")', "Approximate matching (catches typos)"),
         ('amount > 100', "Amount conditions"),
         ('month == 12', "Date components (month, year, day)"),
     ]
@@ -2754,6 +2773,9 @@ def cmd_explain(args):
 def _format_match_expr(pattern):
     """Convert a regex pattern to a readable match expression."""
     import re
+    # If pattern already uses function syntax, return as-is
+    if re.match(r'^(normalized|anyof|startswith|fuzzy|contains|regex)\s*\(', pattern):
+        return pattern
     # If it looks like a simple word match, show as contains()
     if re.match(r'^[A-Z0-9\s]+$', pattern):
         # Simple uppercase pattern - convert to contains()
@@ -2764,6 +2786,49 @@ def _format_match_expr(pattern):
     else:
         # Default to contains() for simple patterns
         return f'contains("{pattern}")'
+
+
+def _get_function_explanations(pattern):
+    """Get contextual explanations for functions used in a match expression."""
+    import re
+    explanations = []
+
+    # Check for normalized()
+    norm_match = re.search(r'normalized\s*\(\s*"([^"]+)"\s*\)', pattern)
+    if norm_match:
+        arg = norm_match.group(1)
+        explanations.append(
+            f'normalized("{arg}") - matches ignoring spaces, hyphens, and punctuation '
+            f'(e.g., "UBER EATS", "UBER-EATS", "UBEREATS" all match)'
+        )
+
+    # Check for anyof()
+    anyof_match = re.search(r'anyof\s*\(([^)]+)\)', pattern)
+    if anyof_match:
+        args = anyof_match.group(1)
+        explanations.append(
+            f'anyof({args}) - matches if description contains any of these patterns'
+        )
+
+    # Check for startswith()
+    starts_match = re.search(r'startswith\s*\(\s*"([^"]+)"\s*\)', pattern)
+    if starts_match:
+        arg = starts_match.group(1)
+        explanations.append(
+            f'startswith("{arg}") - matches only if description begins with this prefix'
+        )
+
+    # Check for fuzzy()
+    fuzzy_match = re.search(r'fuzzy\s*\(\s*"([^"]+)"(?:\s*,\s*([0-9.]+))?\s*\)', pattern)
+    if fuzzy_match:
+        arg = fuzzy_match.group(1)
+        threshold = fuzzy_match.group(2) or '0.80'
+        explanations.append(
+            f'fuzzy("{arg}", {threshold}) - fuzzy matching at {float(threshold)*100:.0f}% similarity '
+            f'(catches typos like "MARKEPLACE" vs "MARKETPLACE")'
+        )
+
+    return explanations
 
 
 def _print_description_explanation(query, trace, output_format, verbose):
@@ -2786,10 +2851,18 @@ def _print_description_explanation(query, trace, output_format, verbose):
             print("No matching rule found. Run `tally discover` to add a rule for this merchant.")
         else:
             rule = trace['matched_rule']
-            print(f"**Matched Rule:** `{rule['pattern']}`")
+            match_expr = _format_match_expr(rule['pattern'])
+            print(f"**Matched Rule:** `{match_expr}`")
             print(f"**Matched On:** {rule['matched_on']} description")
             print(f"**Merchant:** {trace['merchant']}")
             print(f"**Category:** {trace['category']} > {trace['subcategory']}")
+            # Show function explanations
+            explanations = _get_function_explanations(match_expr)
+            if explanations:
+                print()
+                print("**How it matches:**")
+                for expl in explanations:
+                    print(f"- {expl}")
             # Note about special categories
             if trace['category'] in ('Transfers', 'Payments', 'Cash'):
                 print(f"**Note:** This category is excluded from spending analysis")
@@ -2811,13 +2884,21 @@ def _print_description_explanation(query, trace, output_format, verbose):
             print("  Run 'tally discover' to add a rule for this merchant.")
         else:
             rule = trace['matched_rule']
+            match_expr = _format_match_expr(rule['pattern'])
             print(f"  Matched Rule:")
             print(f"    {C.DIM}[{trace['merchant']}]{C.RESET}")
-            print(f"    {C.DIM}match: {_format_match_expr(rule['pattern'])}{C.RESET}")
+            print(f"    {C.DIM}match: {match_expr}{C.RESET}")
             print(f"    {C.DIM}category: {trace['category']}{C.RESET}")
             print(f"    {C.DIM}subcategory: {trace['subcategory']}{C.RESET}")
             if rule.get('tags'):
                 print(f"    {C.DIM}tags: {', '.join(rule['tags'])}{C.RESET}")
+            # Show function explanations
+            explanations = _get_function_explanations(match_expr)
+            if explanations:
+                print()
+                print(f"  {C.DIM}How it matches:{C.RESET}")
+                for expl in explanations:
+                    print(f"    {C.DIM}• {expl}{C.RESET}")
             # Note about special categories
             if trace['category'] in ('Transfers', 'Payments', 'Cash'):
                 print(f"  {C.DIM}Note: This category is excluded from spending analysis{C.RESET}")

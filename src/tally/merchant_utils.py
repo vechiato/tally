@@ -77,12 +77,22 @@ def load_merchant_rules(csv_path):
 def _expr_to_regex(match_expr: str) -> str:
     """Convert a .rules match expression to a regex pattern for legacy matching.
 
+    For new functions (normalized, anyof, startswith, fuzzy), we return the
+    full expression since these need to be evaluated by the expression parser.
+
     Examples:
         contains("NETFLIX") -> NETFLIX
         regex("UBER(?!.*EATS)") -> UBER(?!.*EATS)
         contains("COSTCO") and amount > 200 -> COSTCO (amount ignored in regex)
+        normalized("UBEREATS") -> normalized("UBEREATS")  # preserved for expr parser
     """
     import re as regex_module
+
+    # Check if expression uses new functions that need to be preserved
+    if regex_module.search(r'\b(normalized|anyof|startswith|fuzzy)\s*\(', match_expr):
+        # Return full expression - will be handled by expression parser
+        return match_expr
+
     # Extract pattern from contains("...") or regex("...")
     contains_match = regex_module.search(r'contains\s*\(\s*["\']([^"\']+)["\']\s*\)', match_expr)
     if contains_match:
@@ -335,6 +345,8 @@ def normalize_merchant(
         Tuple of (merchant_name, category, subcategory, match_info)
         match_info is a dict with 'pattern', 'source', 'tags', or None if no match
     """
+    from tally import expr_parser
+
     # Clean the description for better matching
     cleaned = clean_description(description, cleaning_patterns)
     desc_upper = description.upper()
@@ -357,27 +369,52 @@ def normalize_merchant(
             source = 'unknown'
 
         try:
-            # Check regex pattern first (most common case)
-            regex_matches = (
-                re.search(pattern, desc_upper, re.IGNORECASE) or
-                re.search(pattern, cleaned_upper, re.IGNORECASE)
-            )
-            if not regex_matches:
-                continue
+            # Determine if this is an expression pattern or a regex pattern
+            if _is_expression_pattern(pattern):
+                # Use expression parser for expression-based rules
+                transaction = {'description': description, 'amount': amount or 0}
+                if txn_date:
+                    transaction['date'] = txn_date
+                matches_original = expr_parser.matches_transaction(pattern, transaction)
 
-            # If pattern has modifiers, check them
-            if parsed and (parsed.amount_conditions or parsed.date_conditions):
-                if not check_all_conditions(parsed, amount, txn_date):
+                # Also try with cleaned description
+                transaction_cleaned = {'description': cleaned, 'amount': amount or 0}
+                if txn_date:
+                    transaction_cleaned['date'] = txn_date
+                matches_cleaned = expr_parser.matches_transaction(pattern, transaction_cleaned)
+
+                if not (matches_original or matches_cleaned):
+                    continue
+            else:
+                # Legacy regex pattern matching
+                regex_matches = (
+                    re.search(pattern, desc_upper, re.IGNORECASE) or
+                    re.search(pattern, cleaned_upper, re.IGNORECASE)
+                )
+                if not regex_matches:
                     continue
 
+                # If pattern has modifiers, check them
+                if parsed and (parsed.amount_conditions or parsed.date_conditions):
+                    if not check_all_conditions(parsed, amount, txn_date):
+                        continue
+
             return (merchant, category, subcategory, {'pattern': pattern, 'source': source, 'tags': tags})
-        except re.error:
-            # Invalid regex pattern, skip
+        except (re.error, expr_parser.ExpressionError):
+            # Invalid pattern, skip
             continue
 
     # Fallback: extract merchant name from description, categorize as Unknown
     merchant_name = extract_merchant_name(description, cleaning_patterns)
     return (merchant_name, 'Unknown', 'Unknown', None)
+
+
+def _is_expression_pattern(pattern: str) -> bool:
+    """Check if a pattern is an expression (uses function syntax) vs a regex."""
+    import re
+    # Expression patterns start with function calls like contains(), normalized(), etc.
+    return bool(re.match(r'^(contains|normalized|anyof|startswith|fuzzy|regex)\s*\(', pattern)) or \
+           ' and ' in pattern or ' or ' in pattern or pattern.startswith('(')
 
 
 def explain_description(
@@ -398,6 +435,8 @@ def explain_description(
     - subcategory: Resulting subcategory
     - is_unknown: Whether this is an unknown merchant
     """
+    from tally import expr_parser
+
     # Use existing clean_description function
     cleaned = clean_description(description, cleaning_patterns)
 
@@ -431,17 +470,34 @@ def explain_description(
             source = 'unknown'
 
         try:
-            # Check regex pattern
-            match_on_original = re.search(pattern, desc_upper, re.IGNORECASE)
-            match_on_cleaned = re.search(pattern, cleaned_upper, re.IGNORECASE)
+            # Determine if this is an expression pattern or a regex pattern
+            if _is_expression_pattern(pattern):
+                # Use expression parser for expression-based rules
+                transaction = {'description': description, 'amount': amount or 0}
+                if txn_date:
+                    transaction['date'] = txn_date
+                match_on_original = expr_parser.matches_transaction(pattern, transaction)
 
-            if not (match_on_original or match_on_cleaned):
-                continue
+                # Also try with cleaned description
+                transaction_cleaned = {'description': cleaned, 'amount': amount or 0}
+                if txn_date:
+                    transaction_cleaned['date'] = txn_date
+                match_on_cleaned = expr_parser.matches_transaction(pattern, transaction_cleaned)
 
-            # If pattern has modifiers, check them
-            if parsed and (parsed.amount_conditions or parsed.date_conditions):
-                if not check_all_conditions(parsed, amount, txn_date):
+                if not (match_on_original or match_on_cleaned):
                     continue
+            else:
+                # Legacy regex pattern matching
+                match_on_original = re.search(pattern, desc_upper, re.IGNORECASE)
+                match_on_cleaned = re.search(pattern, cleaned_upper, re.IGNORECASE)
+
+                if not (match_on_original or match_on_cleaned):
+                    continue
+
+                # If pattern has modifiers, check them
+                if parsed and (parsed.amount_conditions or parsed.date_conditions):
+                    if not check_all_conditions(parsed, amount, txn_date):
+                        continue
 
             result['matched_rule'] = {
                 'pattern': pattern,
@@ -454,7 +510,7 @@ def explain_description(
             result['subcategory'] = subcategory
             return result
 
-        except re.error:
+        except (re.error, expr_parser.ExpressionError):
             continue
 
     # No match - unknown merchant
