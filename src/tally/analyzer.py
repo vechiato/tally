@@ -376,12 +376,6 @@ def parse_generic_csv(filepath, format_spec, rules, home_locations=None, source_
             # Track if this is a credit (negative amount = income/refund)
             is_credit = amount < 0
 
-            # Mark credits as excluded if configured (for bank accounts where credits are income)
-            # Instead of skipping, we include them but mark as excluded for transparency
-            excluded_reason = None
-            if is_credit and getattr(format_spec, 'skip_negative', False):
-                excluded_reason = 'income'  # Credit/deposit excluded from spending analysis
-
             # Extract location
             location = None
             if format_spec.location_column is not None:
@@ -409,7 +403,7 @@ def parse_generic_csv(filepath, format_spec, rules, home_locations=None, source_
                 'is_credit': is_credit,
                 'match_info': match_info,
                 'tags': match_info.get('tags', []) if match_info else [],
-                'excluded': excluded_reason,  # None if included, or reason string if excluded
+                'excluded': None,  # No auto-exclusion; use rules to categorize
             })
 
         except (ValueError, IndexError):

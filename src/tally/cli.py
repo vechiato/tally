@@ -276,11 +276,9 @@ merchants_file: config/merchants.rules
 data_sources:
   - name: AMEX
     file: data/amex.csv
-    account_type: credit_card
     format: "{date:%m/%d/%Y},{description},{amount}"
   - name: Chase
     file: data/chase.csv
-    account_type: credit_card
     format: "{date:%m/%d/%Y},{description},{amount}"
 output_dir: output
 
@@ -340,17 +338,16 @@ title: "Spending Analysis {year}"
 # Data sources - add your statement files here
 # Run: tally inspect <file> to auto-detect the format string
 data_sources:
-  # Example credit card CSV:
+  # Example credit card CSV (positive amounts = purchases):
   # - name: Credit Card
   #   file: data/card-{year}.csv
-  #   account_type: credit_card  # positive = purchase
   #   format: "{{date:%m/%d/%Y}},{{description}},{{amount}}"
   #
-  # Example bank statement:
+  # Example bank statement (negative amounts = purchases):
+  # Use {{-amount}} to flip signs so expenses are positive
   # - name: Checking
   #   file: data/checking-{year}.csv
-  #   account_type: bank  # negative = purchase, filters income
-  #   format: "{{date:%Y-%m-%d}},{{description}},{{amount}}"
+  #   format: "{{date:%Y-%m-%d}},{{description}},{{-amount}}"
 
 output_dir: output
 html_filename: spending_summary.html
@@ -1502,14 +1499,15 @@ def _detect_file_format(filepath):
 
 def _analyze_amount_patterns(filepath, amount_col, has_header=True, delimiter=None, max_rows=1000):
     """
-    Analyze amount column patterns to suggest account_type and categorization.
+    Analyze amount column patterns to help users understand their data's sign convention.
 
     Returns dict with:
         - positive_count: number of positive amounts
         - negative_count: number of negative amounts
         - positive_total: sum of positive amounts
         - negative_total: sum of negative amounts (as positive number)
-        - suggested_account_type: 'credit_card' or 'bank'
+        - sign_convention: 'expenses_positive' or 'expenses_negative'
+        - suggest_negate: True if user should use {-amount} to normalize
         - sample_credits: list of (description, amount) for likely transfers/income
     """
     import csv
@@ -1600,24 +1598,28 @@ def _analyze_amount_patterns(filepath, amount_col, has_header=True, delimiter=No
     if total_count == 0:
         return None
 
-    # Determine account type based on sign distribution
-    # Credit cards: mostly positive (charges), few negative (payments/refunds)
-    # Bank accounts: mostly negative (debits), some positive (deposits)
+    # Determine sign convention based on distribution
+    # Expenses positive: mostly positive amounts (typical credit card export)
+    # Expenses negative: mostly negative amounts (typical bank export)
     positive_pct = positive_count / total_count * 100
 
     if positive_pct > 70:
-        suggested_type = 'credit_card'
-        rationale = "mostly positive amounts (charges)"
+        sign_convention = 'expenses_positive'
+        suggest_negate = False
+        rationale = "mostly positive amounts (expenses are positive)"
     elif positive_pct < 30:
-        suggested_type = 'bank'
-        rationale = "mostly negative amounts (debits)"
+        sign_convention = 'expenses_negative'
+        suggest_negate = True
+        rationale = "mostly negative amounts (expenses are negative)"
     else:
         # Mixed - harder to tell
         if positive_total > negative_total:
-            suggested_type = 'credit_card'
+            sign_convention = 'expenses_positive'
+            suggest_negate = False
             rationale = "total positive exceeds negative"
         else:
-            suggested_type = 'bank'
+            sign_convention = 'expenses_negative'
+            suggest_negate = True
             rationale = "total negative exceeds positive"
 
     return {
@@ -1626,7 +1628,8 @@ def _analyze_amount_patterns(filepath, amount_col, has_header=True, delimiter=No
         'positive_total': positive_total,
         'negative_total': negative_total,
         'positive_pct': positive_pct,
-        'suggested_account_type': suggested_type,
+        'sign_convention': sign_convention,
+        'suggest_negate': suggest_negate,
         'rationale': rationale,
         'sample_credits': sample_credits,
     }
@@ -1772,32 +1775,31 @@ def cmd_inspect(args):
             print(f"  Negative amounts: {analysis['negative_count']} (${analysis['negative_total']:,.2f})")
             print(f"  Distribution: {analysis['positive_pct']:.1f}% positive")
 
-            print(f"\n  Suggested account_type: {analysis['suggested_account_type']}")
+            print(f"\n  Sign convention: {analysis['sign_convention'].replace('_', ' ')}")
             print(f"    Rationale: {analysis['rationale']}")
 
-            if analysis['suggested_account_type'] == 'credit_card':
-                print("\n  What 'account_type: credit_card' does:")
-                print("    - Keeps amounts as-is (charges are positive expenses)")
-                print("    - Negative amounts (payments/refunds) are kept for categorization")
-                print("\n  For credit cards, negative amounts are usually:")
-                print("    - Payments → Category: Transfers/CC Payment")
-                print("    - Refunds → Category: same as original purchase")
+            if analysis['suggest_negate']:
+                print("\n  Recommendation: Use {-amount} to normalize signs")
+                print("    Your data has expenses as NEGATIVE values.")
+                print("    Using {-amount} will flip signs so expenses become positive.")
+                print(f'\n    format: "{format_str.replace("{amount}", "{-amount}")}"')
+                print("\n  OR: Keep raw signs and write sign-aware rules:")
+                print("    match: contains(\"GROCERY\") and amount < 0  # expenses")
+                print("    match: contains(\"REFUND\") and amount > 0   # credits")
             else:
-                print("\n  What 'account_type: bank' does:")
-                print("    - Negates amounts (debits become positive expenses)")
-                print("    - Skips credits/deposits (income filtered out)")
-                print("\n  For bank accounts, positive amounts (after negation) are usually:")
-                print("    - Regular purchases, bills, transfers out")
-                print("  Skipped credits are usually:")
-                print("    - Deposits/Income, transfers in")
+                print("\n  Your data has expenses as POSITIVE values (standard convention).")
+                print("  No sign normalization needed.")
+                print("\n  To match by sign in rules:")
+                print("    match: contains(\"GROCERY\") and amount > 0  # expenses")
+                print("    match: contains(\"REFUND\") and amount < 0   # credits/refunds")
 
             # Show sample credits as hints
             if analysis['sample_credits']:
-                print("\n  Sample credits (may be transfers/income):")
+                print("\n  Sample negative amounts (may be refunds/credits):")
                 for desc, amt in analysis['sample_credits'][:5]:
                     truncated = desc[:40] + '...' if len(desc) > 40 else desc
-                    print(f"    ${abs(amt):,.2f}  {truncated}")
-                print("\n  Hint: Add categorization rules for these if they are transfers/income")
+                    print(f"    ${amt:,.2f}  {truncated}")
+                print("\n  Hint: Categorize these with rules matching amount < 0 (or amount > 0 if using {-amount})")
 
     except ValueError as e:
         print(f"  Could not auto-detect: {e}")
@@ -2290,7 +2292,6 @@ def cmd_workflow(args):
         print(f"       {C.DIM}data_sources:")
         print(f"         - name: My Card")
         print(f"           file: data/transactions.csv")
-        print(f"           account_type: credit_card  # or 'bank'")
         print(f"           format: \"{{date:%m/%d/%Y}},{{description}},{{amount}}\"{C.RESET}")
         print()
         section("Then: Categorize Transactions")

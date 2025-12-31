@@ -28,10 +28,13 @@ class TestTransactionContext:
         assert ctx.year == 2025
         assert ctx.day == 15
 
-    def test_amount_absolute_value(self):
-        """Amount is always positive."""
+    def test_amount_preserves_sign(self):
+        """Amount preserves its sign (use abs(amount) in rules for magnitude)."""
         ctx = TransactionContext(amount=-99.50)
-        assert ctx.amount == 99.50
+        assert ctx.amount == -99.50
+
+        ctx_pos = TransactionContext(amount=99.50)
+        assert ctx_pos.amount == 99.50
 
     def test_from_transaction_dict(self):
         """Create context from transaction dictionary."""
@@ -42,7 +45,7 @@ class TestTransactionContext:
         }
         ctx = TransactionContext.from_transaction(txn)
         assert ctx.description == 'AMAZON PURCHASE'
-        assert ctx.amount == 45.00
+        assert ctx.amount == -45.00  # Sign preserved
         assert ctx.month == 12
         assert ctx.year == 2025
         assert ctx.day == 25
@@ -144,11 +147,16 @@ class TestAmountConditions:
         assert matches_transaction('amount >= 50 and amount <= 100', txn)
         assert not matches_transaction('amount >= 100 and amount <= 200', txn)
 
-    def test_negative_amount_becomes_positive(self):
-        """Negative amounts are converted to positive."""
-        txn = {'description': 'PURCHASE', 'amount': -150.00}
-        assert matches_transaction('amount > 100', txn)
-        assert matches_transaction('amount == 150', txn)
+    def test_negative_amount_preserved(self):
+        """Negative amounts are preserved for matching."""
+        txn = {'description': 'REFUND', 'amount': -150.00}
+        assert matches_transaction('amount < 0', txn)
+        assert matches_transaction('amount == -150', txn)
+        assert not matches_transaction('amount > 0', txn)
+
+        # Use abs() for magnitude-only matching
+        assert matches_transaction('abs(amount) > 100', txn)
+        assert matches_transaction('abs(amount) == 150', txn)
 
 
 class TestDateConditions:

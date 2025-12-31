@@ -147,7 +147,7 @@ class TransactionContext:
         variables: Optional[Dict[str, Any]] = None,
     ):
         self.description = description
-        self.amount = abs(amount)  # Always positive for matching
+        self.amount = amount  # Preserve sign - use abs(amount) in rules if needed
         self.date = date
         self.variables = variables or {}
 

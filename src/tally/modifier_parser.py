@@ -223,14 +223,13 @@ def evaluate_amount_condition(amount: float, condition: AmountCondition) -> bool
     Check if an amount satisfies the condition.
 
     Args:
-        amount: The transaction amount (will be converted to absolute value)
+        amount: The transaction amount (sign preserved for matching)
         condition: The amount condition to check
 
     Returns:
         True if the amount satisfies the condition
     """
-    # Use absolute value so rules work intuitively for both debits and credits
-    amount = abs(amount)
+    # Sign preserved - use negative values in conditions to match credits/refunds
 
     if condition.operator == '>':
         return amount > condition.value

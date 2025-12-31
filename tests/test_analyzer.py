@@ -792,37 +792,42 @@ class TestRegexDelimiter:
             os.unlink(f.name)
 
 
-class TestAccountType:
-    """Tests for account_type presets (credit_card, bank, etc.)."""
+class TestAmountSignHandling:
+    """Tests for amount sign handling - signs flow through, no auto-exclusion."""
 
-    def test_account_type_presets_exist(self):
-        """Verify account type presets are defined."""
-        from tally.format_parser import ACCOUNT_TYPE_PRESETS, get_account_type_settings
+    def test_account_type_raises_error(self):
+        """account_type setting is no longer supported."""
+        from tally.config_loader import resolve_source_format
 
-        assert 'credit_card' in ACCOUNT_TYPE_PRESETS
-        assert 'bank' in ACCOUNT_TYPE_PRESETS
-        assert 'brokerage' in ACCOUNT_TYPE_PRESETS
-
-        # Credit card: no negation, keep refunds
-        cc = get_account_type_settings('credit_card')
-        assert cc['negate_amount'] == False
-        assert cc['skip_negative'] == False
-
-        # Bank: negate amounts, skip income
-        bank = get_account_type_settings('bank')
-        assert bank['negate_amount'] == True
-        assert bank['skip_negative'] == True
-
-    def test_account_type_invalid(self):
-        """Unknown account type raises error."""
-        from tally.format_parser import get_account_type_settings
+        source = {
+            'name': 'Test',
+            'file': 'test.csv',
+            'format': '{date}, {description}, {amount}',
+            'account_type': 'bank',
+        }
 
         with pytest.raises(ValueError) as exc_info:
-            get_account_type_settings('invalid_type')
-        assert 'Unknown account_type' in str(exc_info.value)
+            resolve_source_format(source)
+        assert 'no longer supported' in str(exc_info.value)
+        assert '{-amount}' in str(exc_info.value)  # Suggests the alternative
 
-    def test_credit_card_keeps_signs(self):
-        """Credit card account type keeps amounts as-is."""
+    def test_skip_negative_raises_error(self):
+        """skip_negative setting is no longer supported."""
+        from tally.config_loader import resolve_source_format
+
+        source = {
+            'name': 'Test',
+            'file': 'test.csv',
+            'format': '{date}, {description}, {amount}',
+            'skip_negative': True,
+        }
+
+        with pytest.raises(ValueError) as exc_info:
+            resolve_source_format(source)
+        assert 'no longer supported' in str(exc_info.value)
+
+    def test_amount_signs_preserved(self):
+        """Amounts keep their signs from the CSV."""
         csv_content = """Date,Description,Amount
 01/15/2025,PURCHASE,50.00
 01/16/2025,REFUND,-25.00
@@ -835,22 +840,23 @@ class TestAccountType:
 
             rules = get_all_rules()
             format_spec = parse_format_string('{date:%m/%d/%Y}, {description}, {amount}')
-            # Apply credit_card preset
-            format_spec.negate_amount = False
-            format_spec.skip_negative = False
 
             from tally.analyzer import parse_generic_csv
             txns = parse_generic_csv(f.name, format_spec, rules)
 
             assert len(txns) == 3
-            assert txns[0]['amount'] == 50.00   # Purchase: positive
-            assert txns[1]['amount'] == -25.00  # Refund: negative (kept)
-            assert txns[2]['amount'] == -500.00 # Payment: negative (kept)
+            assert txns[0]['amount'] == 50.00   # Positive preserved
+            assert txns[1]['amount'] == -25.00  # Negative preserved
+            assert txns[2]['amount'] == -500.00 # Negative preserved
+            # No auto-exclusion
+            assert txns[0].get('excluded') is None
+            assert txns[1].get('excluded') is None
+            assert txns[2].get('excluded') is None
         finally:
             os.unlink(f.name)
 
-    def test_bank_negates_and_skips_income(self):
-        """Bank account type negates amounts and skips income."""
+    def test_negate_amount_flips_signs(self):
+        """Using {-amount} flips all signs."""
         csv_content = """Date,Description,Amount
 01/15/2025,GROCERY STORE,-50.00
 01/16/2025,PAYCHECK,2000.00
@@ -862,39 +868,40 @@ class TestAccountType:
             f.close()
 
             rules = get_all_rules()
-            format_spec = parse_format_string('{date:%m/%d/%Y}, {description}, {amount}')
-            # Apply bank preset
-            format_spec.negate_amount = True
-            format_spec.skip_negative = True
+            format_spec = parse_format_string('{date:%m/%d/%Y}, {description}, {-amount}')
 
             from tally.analyzer import parse_generic_csv
             txns = parse_generic_csv(f.name, format_spec, rules)
 
-            # All transactions returned, but income is marked as excluded
             assert len(txns) == 3
-            assert txns[0]['amount'] == 50.00  # -50 negated to +50
-            assert txns[0].get('excluded') is None  # Not excluded
-            assert txns[1]['amount'] == -2000.00  # 2000 negated to -2000 (credit)
-            assert txns[1]['excluded'] == 'income'  # Marked as excluded
-            assert txns[2]['amount'] == 5.00   # -5 negated to +5
-            assert txns[2].get('excluded') is None  # Not excluded
+            assert txns[0]['amount'] == 50.00    # -50 negated to +50
+            assert txns[1]['amount'] == -2000.00 # +2000 negated to -2000
+            assert txns[2]['amount'] == 5.00     # -5 negated to +5
+            # No auto-exclusion - all transactions included
+            assert txns[0].get('excluded') is None
+            assert txns[1].get('excluded') is None
+            assert txns[2].get('excluded') is None
         finally:
             os.unlink(f.name)
 
-    def test_explicit_settings_override_account_type(self):
-        """Explicit negate_amount/skip_negative override account_type defaults."""
-        from tally.config_loader import resolve_source_format
+    def test_is_credit_flag_set_correctly(self):
+        """is_credit flag is True for negative amounts."""
+        csv_content = """Date,Description,Amount
+01/15/2025,PURCHASE,50.00
+01/16/2025,REFUND,-25.00
+"""
+        f = tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False)
+        try:
+            f.write(csv_content)
+            f.close()
 
-        source = {
-            'name': 'Test',
-            'file': 'test.csv',
-            'format': '{date}, {description}, {amount}',
-            'account_type': 'bank',  # Would set negate=True, skip=True
-            'skip_negative': False,  # Override: keep income
-        }
+            rules = get_all_rules()
+            format_spec = parse_format_string('{date:%m/%d/%Y}, {description}, {amount}')
 
-        resolved = resolve_source_format(source)
-        spec = resolved['_format_spec']
+            from tally.analyzer import parse_generic_csv
+            txns = parse_generic_csv(f.name, format_spec, rules)
 
-        assert spec.negate_amount == True   # From account_type
-        assert spec.skip_negative == False  # Overridden
+            assert txns[0]['is_credit'] == False  # Positive = not credit
+            assert txns[1]['is_credit'] == True   # Negative = credit
+        finally:
+            os.unlink(f.name)

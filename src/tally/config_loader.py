@@ -6,7 +6,7 @@ Loads settings from YAML config files.
 
 import os
 
-from .format_parser import parse_format_string, is_special_parser_type, get_account_type_settings
+from .format_parser import parse_format_string, is_special_parser_type
 from .classification_rules import load_rules, get_default_rules, write_default_rules, get_default_rules_parsed
 from .section_engine import load_sections, SectionParseError
 
@@ -125,20 +125,29 @@ def resolve_source_format(source, warnings=None):
     source = source.copy()
     source_name = source.get('name', 'unknown')
 
+    # Check for deprecated account_type setting
+    if 'account_type' in source:
+        raise ValueError(
+            f"Source '{source_name}': 'account_type' is no longer supported. "
+            f"Use '{{-amount}}' in your format string to negate amounts. "
+            f"To filter income/deposits, add categorization rules with 'amount < 0' conditions. "
+            f"Run 'tally inspect {source.get('file', '<file>')}' to see your data's sign convention."
+        )
+
+    # Check for deprecated skip_negative setting
+    if 'skip_negative' in source:
+        raise ValueError(
+            f"Source '{source_name}': 'skip_negative' is no longer supported. "
+            f"All transactions are now included. To filter credits/deposits, "
+            f"categorize them with rules using 'amount < 0' (or 'amount > 0' if using {{-amount}})."
+        )
+
     if 'format' in source:
         # Custom format string provided
         format_str = source['format']
 
-        # Check for deprecated {-amount} syntax
-        if '{-amount}' in format_str and warnings is not None:
-            warnings.append({
-                'type': 'deprecated',
-                'source': source_name,
-                'feature': '{-amount}',
-                'message': f"Source '{source_name}' uses deprecated {{-amount}} syntax.",
-                'suggestion': "Use 'account_type: bank' instead, which handles sign negation and filters income.",
-                'example': f"  - name: {source_name}\n    account_type: bank\n    format: \"{format_str.replace('{-amount}', '{amount}')}\"",
-            })
+        # {-amount} is a first-class feature for normalizing source sign conventions
+        # No deprecation warning needed
 
         # Check for columns.description template
         columns = source.get('columns', {})
@@ -147,21 +156,13 @@ def resolve_source_format(source, warnings=None):
         try:
             format_spec = parse_format_string(format_str, description_template)
 
-            # Apply account_type preset first (can be overridden by explicit settings)
-            if 'account_type' in source:
-                preset = get_account_type_settings(source['account_type'])
-                format_spec.negate_amount = preset['negate_amount']
-                format_spec.skip_negative = preset['skip_negative']
-
-            # Apply explicit settings (override account_type defaults)
+            # Apply explicit settings
             if 'delimiter' in source:
                 format_spec.delimiter = source['delimiter']
             if 'has_header' in source:
                 format_spec.has_header = source['has_header']
             if 'negate_amount' in source:
                 format_spec.negate_amount = source['negate_amount']
-            if 'skip_negative' in source:
-                format_spec.skip_negative = source['skip_negative']
 
             source['_format_spec'] = format_spec
             source['_parser_type'] = 'generic'
@@ -179,18 +180,18 @@ def resolve_source_format(source, warnings=None):
                     'source': source_name,
                     'feature': f'type: {source_type}',
                     'message': f"Source '{source_name}' uses deprecated 'type: {source_type}'.",
-                    'suggestion': "Use 'account_type' and 'format' instead for better control.",
-                    'example': f"  - name: {source_name}\n    account_type: credit_card\n    format: \"{{date:%m/%d/%Y}}, {{description}}, {{amount}}\"",
+                    'suggestion': "Use 'format' instead for better control.",
+                    'example': f"  - name: {source_name}\n    format: \"{{date:%m/%d/%Y}}, {{description}}, {{amount}}\"",
                 })
             source['_parser_type'] = source_type
             source['_format_spec'] = None
         else:
-            raise ValueError(f"Unknown source type: '{source_type}'. Use 'account_type' with a 'format' string.")
+            raise ValueError(f"Unknown source type: '{source_type}'. Use 'format' instead.")
 
     else:
         raise ValueError(
             f"Data source '{source.get('name', 'unknown')}' must specify "
-            "'type' or 'format'. Use 'tally inspect <file>' to determine the format."
+            "'format'. Use 'tally inspect <file>' to determine the format."
         )
 
     return source
