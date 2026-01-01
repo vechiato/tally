@@ -150,13 +150,14 @@ class TransactionContext:
     - month: Month number 1-12
     - year: Year (e.g., 2025)
     - day: Day of month 1-31
+    - weekday: Day of week (0=Monday, 1=Tuesday, ... 6=Sunday)
     - field: Custom fields captured from CSV format string (dict)
     - source: Data source name (string)
     - location: Transaction location (string)
     """
 
     __slots__ = ('description', 'amount', 'date', 'variables', 'field', 'source',
-                 'month', 'year', 'day', 'location')
+                 'month', 'year', 'day', 'weekday', 'location')
 
     # Class-level function name mapping (looked up dynamically)
     _FUNCTION_NAMES: Set[str] = {
@@ -189,10 +190,12 @@ class TransactionContext:
             self.month = date.month
             self.year = date.year
             self.day = date.day
+            self.weekday = date.weekday()  # 0=Monday, 6=Sunday
         else:
             self.month = 0
             self.year = 0
             self.day = 0
+            self.weekday = 0
 
     def get_function(self, name: str) -> Optional[Callable]:
         """Get a function by name, looking up method dynamically."""
@@ -897,6 +900,8 @@ class TransactionEvaluator:
             return self.ctx.year
         if name == 'day':
             return self.ctx.day
+        if name == 'weekday':
+            return self.ctx.weekday
         if name == 'source':
             return self.ctx.source
         if name == 'true':

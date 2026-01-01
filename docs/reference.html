@@ -456,6 +456,14 @@
                 <td>First of the month</td>
             </tr>
             <tr>
+                <td><code>weekday == 0</code></td>
+                <td>Mondays only (0=Mon, 1=Tue, ... 6=Sun)</td>
+            </tr>
+            <tr>
+                <td><code>weekday &gt;= 5</code></td>
+                <td>Weekends (Saturday=5, Sunday=6)</td>
+            </tr>
+            <tr>
                 <td><code>date &gt;= "2024-01-01"</code></td>
                 <td>On or after a specific date</td>
             </tr>
@@ -648,6 +656,22 @@ field.memo = trim(field.memo)</code></pre>
 <span class="highlight">[Uber Rides]</span>                   <span class="comment"># Less specific, checked second</span>
 <span class="keyword">match:</span> contains(<span class="string">"UBER"</span>)
 <span class="keyword">category:</span> Transportation</code></pre>
+
+        <h2 id="practical-examples">Practical Examples</h2>
+        
+        <h3>Weekday vs Weekend Tagging</h3>
+        <p>Tag the same merchant differently based on day of week (e.g., work lunches Monday-Friday):</p>
+        <pre><code><span class="highlight">[Work Lunch - Weekday]</span>
+<span class="keyword">match:</span> contains(<span class="string">"CAFE"</span>) and weekday &lt; 5  <span class="comment"># Monday-Friday (0-4)</span>
+<span class="keyword">category:</span> Food
+<span class="keyword">subcategory:</span> Cafe
+<span class="keyword">tags:</span> work
+
+<span class="highlight">[Cafe - Weekend]</span>
+<span class="keyword">match:</span> contains(<span class="string">"CAFE"</span>) and weekday &gt;= 5  <span class="comment"># Saturday-Sunday (5-6)</span>
+<span class="keyword">category:</span> Food
+<span class="keyword">subcategory:</span> Cafe
+<span class="comment"># No work tag for weekends</span></code></pre>
 
         <h2 id="views-rules">Views Rules</h2>
         <p>File: <code>config/views.rules</code></p>

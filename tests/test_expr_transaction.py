@@ -1335,3 +1335,74 @@ class TestLocationField:
         txn = {'description': 'STORE', 'amount': 100.00, 'location': 'SEATTLE\nWA'}
         assert matches_transaction(r'regex(field.location, "\\bWA$")', txn)
         assert not matches_transaction(r'regex(field.location, "\\bHI$")', txn)
+
+
+class TestWeekdayFilter:
+    """Tests for weekday filter functionality."""
+
+    def test_weekday_monday(self):
+        """Monday is weekday 0."""
+        # 2025-01-06 is a Monday
+        ctx = TransactionContext(
+            description="TEST",
+            amount=10.00,
+            date=date(2025, 1, 6)
+        )
+        assert ctx.weekday == 0
+        assert matches_transaction("weekday == 0", {'description': 'TEST', 'amount': 10.00, 'date': date(2025, 1, 6)})
+
+    def test_weekday_sunday(self):
+        """Sunday is weekday 6."""
+        # 2025-01-05 is a Sunday
+        ctx = TransactionContext(
+            description="TEST",
+            amount=10.00,
+            date=date(2025, 1, 5)
+        )
+        assert ctx.weekday == 6
+        assert matches_transaction("weekday == 6", {'description': 'TEST', 'amount': 10.00, 'date': date(2025, 1, 5)})
+
+    def test_weekday_weekend(self):
+        """Weekend days (Saturday=5, Sunday=6)."""
+        saturday = date(2025, 1, 4)  # Saturday
+        sunday = date(2025, 1, 5)    # Sunday
+        monday = date(2025, 1, 6)    # Monday
+
+        # Weekend check: weekday >= 5
+        assert matches_transaction("weekday >= 5", {'description': 'TEST', 'amount': 10.00, 'date': saturday})
+        assert matches_transaction("weekday >= 5", {'description': 'TEST', 'amount': 10.00, 'date': sunday})
+        assert not matches_transaction("weekday >= 5", {'description': 'TEST', 'amount': 10.00, 'date': monday})
+
+    def test_weekday_weekdays(self):
+        """Weekdays (Monday-Friday: 0-4)."""
+        monday = date(2025, 1, 6)
+        friday = date(2025, 1, 10)
+        saturday = date(2025, 1, 11)
+
+        # Weekday check: weekday < 5
+        assert matches_transaction("weekday < 5", {'description': 'TEST', 'amount': 10.00, 'date': monday})
+        assert matches_transaction("weekday < 5", {'description': 'TEST', 'amount': 10.00, 'date': friday})
+        assert not matches_transaction("weekday < 5", {'description': 'TEST', 'amount': 10.00, 'date': saturday})
+
+    def test_weekday_combined_with_other_conditions(self):
+        """Weekday can be combined with other conditions."""
+        # Monday parking at specific location
+        monday_parking = {
+            'description': 'PARKING',
+            'amount': 10.00,
+            'date': date(2025, 1, 6)  # Monday
+        }
+        saturday_parking = {
+            'description': 'PARKING',
+            'amount': 10.00,
+            'date': date(2025, 1, 4)  # Saturday
+        }
+
+        expr = 'contains("PARKING") and weekday == 0'
+        assert matches_transaction(expr, monday_parking)
+        assert not matches_transaction(expr, saturday_parking)
+
+    def test_weekday_with_no_date(self):
+        """Weekday defaults to 0 when no date provided."""
+        ctx = TransactionContext(description="TEST", amount=10.00, date=None)
+        assert ctx.weekday == 0
