@@ -661,16 +661,16 @@ field.memo = trim(field.memo)</code></pre>
         
         <h3>Weekday vs Weekend Tagging</h3>
         <p>Tag the same merchant differently based on day of week (e.g., work lunches Monday-Friday):</p>
-        <pre><code><span class="highlight">[Work Lunch - Weekday]</span>
-<span class="keyword">match:</span> contains(<span class="string">"CAFE"</span>) and weekday &lt; 5  <span class="comment"># Monday-Friday (0-4)</span>
+        <pre><code><span class="highlight">[Starbucks - Work]</span>
+<span class="keyword">match:</span> contains(<span class="string">"Starbucks"</span>) and weekday &lt; 5  <span class="comment"># Monday-Friday (0-4)</span>
 <span class="keyword">category:</span> Food
-<span class="keyword">subcategory:</span> Cafe
+<span class="keyword">subcategory:</span> Coffee
 <span class="keyword">tags:</span> work
 
-<span class="highlight">[Cafe - Weekend]</span>
-<span class="keyword">match:</span> contains(<span class="string">"CAFE"</span>) and weekday &gt;= 5  <span class="comment"># Saturday-Sunday (5-6)</span>
+<span class="highlight">[Starbucks]</span>
+<span class="keyword">match:</span> contains(<span class="string">"Starbucks"</span>) and weekday &gt;= 5  <span class="comment"># Saturday-Sunday (5-6)</span>
 <span class="keyword">category:</span> Food
-<span class="keyword">subcategory:</span> Cafe
+<span class="keyword">subcategory:</span> Coffee
 <span class="comment"># No work tag for weekends</span></code></pre>
 
         <h2 id="views-rules">Views Rules</h2>
