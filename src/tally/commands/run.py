@@ -175,11 +175,11 @@ def cmd_run(args):
     if output_format == 'json':
         # JSON output with reasoning
         from ..analyzer import export_json
-        print(export_json(stats, verbose=verbose, only=only_filter, category_filter=category_filter))
+        print(export_json(stats, verbose=verbose, category_filter=category_filter))
     elif output_format == 'markdown':
         # Markdown output with reasoning
         from ..analyzer import export_markdown
-        print(export_markdown(stats, verbose=verbose, only=only_filter, category_filter=category_filter))
+        print(export_markdown(stats, verbose=verbose, category_filter=category_filter))
     elif output_format == 'summary' or args.summary:
         # Text summary only (no HTML)
         if stats.get('sections'):

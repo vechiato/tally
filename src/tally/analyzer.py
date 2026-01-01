@@ -161,29 +161,12 @@ def analyze_transactions(transactions):
             'cv': round(data.get('cv', 0), 2),
         }
 
-    # Legacy bucket support - all merchants go into variable
-    # Views.rules handles custom grouping
-    monthly_merchants = {}
-    annual_merchants = {}
-    periodic_merchants = {}
-    one_off_merchants = {}
-    variable_merchants = dict(by_merchant)
-
-    # Bucket totals - all spending is variable now (views.rules handles custom grouping)
-    monthly_total = 0
-    annual_total = 0
-    periodic_total = 0
-    one_off_total = 0
-    variable_total = sum(d['total'] for d in variable_merchants.values())
-
-    # Monthly value averages - all in variable
-    monthly_avg = 0
-    annual_monthly = 0
-    periodic_monthly = 0
-    variable_monthly = sum(d.get('monthly_value', 0) for d in variable_merchants.values())
-
     # Calculate totals only from non-excluded transactions
     included_transactions = [t for t in transactions if not t.get('excluded')]
+
+    # Calculate monthly totals (views.rules handles custom grouping/sections)
+    total_spending = sum(d['total'] for d in by_merchant.values())
+    monthly_avg = sum(d.get('monthly_value', 0) for d in by_merchant.values())
 
     return {
         'by_category': dict(by_category),
@@ -192,24 +175,9 @@ def analyze_transactions(transactions):
         'total': sum(t['amount'] for t in included_transactions),
         'count': len(included_transactions),
         'num_months': num_months,
-        # Classified merchants
-        'monthly_merchants': monthly_merchants,
-        'annual_merchants': annual_merchants,
-        'periodic_merchants': periodic_merchants,
-        'one_off_merchants': one_off_merchants,
-        'variable_merchants': variable_merchants,
-        # Totals (YTD)
-        'monthly_total': monthly_total,
-        'annual_total': annual_total,
-        'periodic_total': periodic_total,
-        'one_off_total': one_off_total,
-        'variable_total': variable_total,
-        # True monthly averages
-        'monthly_avg': monthly_avg,         # Avg when active
-        'annual_monthly': annual_monthly,   # Annual / 12
-        'periodic_monthly': periodic_monthly, # Periodic / 12
-        'variable_monthly': variable_monthly,
-        'true_monthly': monthly_avg + annual_monthly + periodic_monthly + variable_monthly,
+        # Totals
+        'total_spending': total_spending,
+        'monthly_avg': monthly_avg,
         # Excluded transactions (for UI transparency)
         'excluded_transactions': excluded_transactions,
         'excluded_count': len(excluded_transactions),
@@ -385,13 +353,12 @@ def build_merchant_json(merchant_name, data, verbose=0):
     return result
 
 
-def export_json(stats, verbose=0, only=None, category_filter=None, merchant_filter=None):
+def export_json(stats, verbose=0, category_filter=None, merchant_filter=None):
     """Export analysis results as JSON with reasoning.
 
     Args:
         stats: Analysis results from analyze_transactions()
         verbose: Verbosity level (0=basic, 1=trace, 2=full)
-        only: List of classifications to include (e.g., ['monthly', 'variable'])
         category_filter: Only include merchants in this category
         merchant_filter: Only include these merchants (list of names)
 
@@ -402,58 +369,37 @@ def export_json(stats, verbose=0, only=None, category_filter=None, merchant_filt
     output = {
         'summary': {
             'total_spending': round(stats['total'], 2),
-            'monthly_budget': round(stats['true_monthly'], 2),
+            'monthly_budget': round(stats['monthly_avg'], 2),
             'num_months': stats['num_months'],
-            'breakdown': {
-                'monthly_recurring': round(stats['monthly_avg'], 2),
-                'annual_monthly': round(stats['annual_monthly'], 2),
-                'periodic_monthly': round(stats['periodic_monthly'], 2),
-                'variable_monthly': round(stats['variable_monthly'], 2),
-            },
-            'totals': {
-                'monthly': round(stats['monthly_total'], 2),
-                'annual': round(stats['annual_total'], 2),
-                'periodic': round(stats['periodic_total'], 2),
-                'one_off': round(stats['one_off_total'], 2),
-                'variable': round(stats['variable_total'], 2),
-            }
         },
-        'classifications': {}
+        'merchants': []
     }
 
-    # Classification sections to process
-    all_sections = ['monthly', 'annual', 'periodic', 'one_off', 'variable']
-    sections = only if only else all_sections
+    by_merchant = stats.get('by_merchant', {})
+    merchants = []
 
-    for section in sections:
-        if section not in all_sections:
+    for name, data in by_merchant.items():
+        # Apply filters
+        if category_filter and data.get('category') != category_filter:
             continue
-        merchants_dict = stats.get(f'{section}_merchants', {})
-        merchants = []
+        if merchant_filter and name not in merchant_filter:
+            continue
 
-        for name, data in merchants_dict.items():
-            # Apply filters
-            if category_filter and data.get('category') != category_filter:
-                continue
-            if merchant_filter and name not in merchant_filter:
-                continue
+        merchants.append(build_merchant_json(name, data, verbose))
 
-            merchants.append(build_merchant_json(name, data, verbose))
-
-        # Sort by monthly value descending
-        merchants.sort(key=lambda x: x['monthly_value'], reverse=True)
-        output['classifications'][section] = merchants
+    # Sort by monthly value descending
+    merchants.sort(key=lambda x: x['monthly_value'], reverse=True)
+    output['merchants'] = merchants
 
     return json.dumps(output, indent=2)
 
 
-def export_markdown(stats, verbose=0, only=None, category_filter=None, merchant_filter=None):
+def export_markdown(stats, verbose=0, category_filter=None, merchant_filter=None):
     """Export analysis results as Markdown with reasoning.
 
     Args:
         stats: Analysis results from analyze_transactions()
         verbose: Verbosity level (0=basic, 1=trace, 2=full)
-        only: List of classifications to include (e.g., ['monthly', 'variable'])
         category_filter: Only include merchants in this category
         merchant_filter: Only include these merchants (list of names)
 
@@ -463,72 +409,51 @@ def export_markdown(stats, verbose=0, only=None, category_filter=None, merchant_
 
     # Summary
     lines.append('## Summary\n')
-    lines.append(f"- **Monthly Budget:** ${stats['true_monthly']:.2f}/mo")
+    lines.append(f"- **Monthly Budget:** ${stats['monthly_avg']:.2f}/mo")
     lines.append(f"- **Total Spending (YTD):** ${stats['total']:.2f}")
     lines.append(f"- **Data Period:** {stats['num_months']} months\n")
 
-    # Classification sections to process
-    all_sections = ['monthly', 'annual', 'periodic', 'one_off', 'variable']
-    section_names = {
-        'monthly': 'Every Month',
-        'annual': 'Once a Year',
-        'periodic': 'A Few Times/Year',
-        'one_off': 'Large One-Time',
-        'variable': 'Varies by Month',
-    }
-    sections = only if only else all_sections
+    lines.append("\n## Merchants\n")
 
-    for section in sections:
-        if section not in all_sections:
+    by_merchant = stats.get('by_merchant', {})
+
+    # Sort by monthly value
+    sorted_merchants = sorted(
+        by_merchant.items(),
+        key=lambda x: x[1].get('monthly_value', 0),
+        reverse=True
+    )
+
+    for name, data in sorted_merchants:
+        # Apply filters
+        if category_filter and data.get('category') != category_filter:
             continue
-        merchants_dict = stats.get(f'{section}_merchants', {})
-        if not merchants_dict:
+        if merchant_filter and name not in merchant_filter:
             continue
 
-        lines.append(f"\n## {section_names.get(section, section)}\n")
+        reasoning = data.get('reasoning', {})
 
-        # Sort by monthly value
-        sorted_merchants = sorted(
-            merchants_dict.items(),
-            key=lambda x: x[1].get('monthly_value', 0),
-            reverse=True
-        )
+        lines.append(f"### {name}")
+        lines.append(f"**Category:** {data.get('category', '')} > {data.get('subcategory', '')}")
+        lines.append(f"**Monthly Value:** ${data.get('monthly_value', 0):.2f}")
+        lines.append(f"**YTD Total:** ${data.get('total', 0):.2f}")
+        lines.append(f"**Months Active:** {data.get('months_active', 0)}/{stats['num_months']}")
 
-        for name, data in sorted_merchants:
-            # Apply filters
-            if category_filter and data.get('category') != category_filter:
-                continue
-            if merchant_filter and name not in merchant_filter:
-                continue
+        # Verbose: add decision trace
+        if verbose >= 1:
+            trace = reasoning.get('trace', [])
+            if trace:
+                lines.append('\n**Decision Trace:**')
+                for i, step in enumerate(trace, 1):
+                    lines.append(f"  {i}. {step}")
 
-            reasoning = data.get('reasoning', {})
+        # Very verbose: add calculation details
+        if verbose >= 2:
+            lines.append(f"\n**Calculation:** {data.get('calc_type', '')} ({data.get('calc_reasoning', '')})")
+            lines.append(f"  Formula: {data.get('calc_formula', '')}")
+            lines.append(f"  CV: {reasoning.get('cv', 0):.2f}")
 
-            lines.append(f"### {name}")
-            lines.append(f"**Classification:** {section.replace('_', ' ').title()}")
-            lines.append(f"**Reason:** {reasoning.get('decision', 'N/A')}")
-            lines.append(f"**Category:** {data.get('category', '')} > {data.get('subcategory', '')}")
-            lines.append(f"**Monthly Value:** ${data.get('monthly_value', 0):.2f}")
-            lines.append(f"**YTD Total:** ${data.get('total', 0):.2f}")
-            lines.append(f"**Months Active:** {data.get('months_active', 0)}/{stats['num_months']}")
-
-            # Verbose: add decision trace
-            if verbose >= 1:
-                trace = reasoning.get('trace', [])
-                if trace:
-                    lines.append('\n**Decision Trace:**')
-                    for i, step in enumerate(trace, 1):
-                        lines.append(f"  {i}. {step}")
-
-            # Very verbose: add calculation details
-            if verbose >= 2:
-                lines.append(f"\n**Calculation:** {data.get('calc_type', '')} ({data.get('calc_reasoning', '')})")
-                lines.append(f"  Formula: {data.get('calc_formula', '')}")
-                lines.append(f"  CV: {reasoning.get('cv', 0):.2f}")
-                thresholds = reasoning.get('thresholds', {})
-                if thresholds:
-                    lines.append(f"  Thresholds: bill={thresholds.get('bill_threshold')}, general={thresholds.get('general_threshold')}")
-
-            lines.append('')  # Empty line between merchants
+        lines.append('')  # Empty line between merchants
 
     return '\n'.join(lines)
 
@@ -540,38 +465,23 @@ def print_summary(stats, year=2025, filter_category=None, currency_format="${amo
         return format_currency(amount, currency_format)
 
     by_category = stats['by_category']
-    monthly_merchants = stats['monthly_merchants']
-    annual_merchants = stats['annual_merchants']
-    periodic_merchants = stats['periodic_merchants']
-    one_off_merchants = stats['one_off_merchants']
-    variable_merchants = stats['variable_merchants']
+    by_merchant = stats.get('by_merchant', {})
 
     # Calculate actual spending (transactions tagged income/transfer already excluded)
     actual_spending = sum(data['total'] for (cat, sub), data in by_category.items())
 
     # =========================================================================
-    # MONTHLY BUDGET SUMMARY
+    # SPENDING SUMMARY
     # =========================================================================
     print("=" * 80)
-    print(f"{year} SPENDING ANALYSIS (Occurrence-Based)")
+    print(f"{year} SPENDING ANALYSIS")
     print("=" * 80)
 
-    print("\nMONTHLY BUDGET")
+    print("\nSUMMARY")
     print("-" * 50)
-    print(f"Every Month (6+ mo):         {fmt(stats['monthly_avg']):>14}/mo")
-    print(f"Varies by Month:             {fmt(stats['variable_monthly']):>14}/mo")
-    print(f"                             {'-'*14}")
-    print(f"TRUE MONTHLY BUDGET:         {fmt(stats['monthly_avg'] + stats['variable_monthly']):>14}/mo")
-    print()
-    print("NON-RECURRING (YTD)")
-    print("-" * 50)
-    print(f"Once a Year:                 {fmt(stats['annual_total']):>14}")
-    print(f"A Few Times/Year:            {fmt(stats['periodic_total']):>14}")
-    print(f"Large One-Time:              {fmt(stats['one_off_total']):>14}")
-    print(f"                             {'-'*14}")
-    print(f"Total Non-Recurring:         {fmt(stats['annual_total'] + stats['periodic_total'] + stats['one_off_total']):>14}")
-    print()
-    print(f"TOTAL SPENDING (YTD):        {fmt(actual_spending):>14}")
+    print(f"Monthly Average:             {fmt(stats['monthly_avg']):>14}/mo")
+    print(f"Total Spending (YTD):        {fmt(actual_spending):>14}")
+    print(f"Merchants:                   {len(by_merchant):>14}")
 
     # Show excluded transactions info
     excluded_count = stats.get('excluded_count', 0)
@@ -579,107 +489,47 @@ def print_summary(stats, year=2025, filter_category=None, currency_format="${amo
     if excluded_count > 0:
         print()
         print(f"Excluded (income/transfer):  {fmt(excluded_total):>14}  ({excluded_count} transactions)")
-    else:
-        # Hint about special tags when none are used
-        print()
-        print("TIP: Use special tags to exclude non-spending transactions:")
-        print("     income   - salary, deposits    (excluded from totals)")
-        print("     transfer - CC payments, moves  (excluded from totals)")
-        print("     refund   - returns, credits    (shown in Credits section)")
 
     # =========================================================================
-    # EVERY MONTH (6+ months)
+    # TOP MERCHANTS BY SPENDING
     # =========================================================================
     print("\n" + "=" * 80)
-    print("EVERY MONTH (Appears 6+ Months)")
+    print("TOP MERCHANTS BY SPENDING")
     print("=" * 80)
-    print(f"\n{'Merchant':<26} {'Mo':>3} {'Type':<6} {'Monthly':>10} {'YTD':>12}")
-    print("-" * 62)
+    print(f"\n{'Merchant':<28} {'Category':<18} {'Mo':>3} {'Monthly':>12} {'YTD':>14}")
+    print("-" * 80)
 
-    sorted_monthly = sorted(monthly_merchants.items(),
-        key=lambda x: x[1]['avg_when_active'] if x[1]['is_consistent'] else x[1]['total']/12,
-        reverse=True)
-    for merchant, data in sorted_monthly[:25]:
-        if data['is_consistent']:
-            calc_type = "avg"
-            monthly = data['avg_when_active']
-        else:
-            calc_type = "/12"
-            monthly = data['total'] / 12
-        print(f"{merchant:<26} {data['months_active']:>3} {calc_type:<6} {fmt(monthly):>12} {fmt(data['total']):>14}")
+    sorted_merchants = sorted(
+        by_merchant.items(),
+        key=lambda x: x[1].get('total', 0),
+        reverse=True
+    )
 
-    print(f"\n{'TOTAL':<26} {'':<3} {'':<6} {fmt(stats['monthly_avg']):>12}/mo {fmt(stats['monthly_total']):>14}")
+    for merchant, data in sorted_merchants[:25]:
+        if filter_category and data.get('category', '').lower() != filter_category.lower():
+            continue
+        months_active = data.get('months_active', 0)
+        monthly = data.get('monthly_value', 0)
+        total = data.get('total', 0)
+        category = data.get('category', 'Unknown')[:18]
+        print(f"{merchant:<28} {category:<18} {months_active:>3} {fmt(monthly):>12} {fmt(total):>14}")
+
+    print(f"\n{'TOTAL':<28} {'':<18} {'':<3} {fmt(stats['monthly_avg']):>12}/mo {fmt(actual_spending):>14}")
 
     # =========================================================================
-    # ONCE A YEAR
+    # BY CATEGORY
     # =========================================================================
     print("\n" + "=" * 80)
-    print("ONCE A YEAR")
+    print("BY CATEGORY")
     print("=" * 80)
-    print(f"\n{'Merchant':<28} {'Category':<15} {'Total':>12}")
-    print("-" * 58)
+    print(f"\n{'Category':<20} {'Subcategory':<18} {'YTD':>14}")
+    print("-" * 56)
 
-    sorted_annual = sorted(annual_merchants.items(), key=lambda x: x[1]['total'], reverse=True)
-    for merchant, data in sorted_annual:
-        print(f"{merchant:<28} {data['subcategory']:<15} {fmt(data['total']):>14}")
-
-    print(f"\n{'TOTAL':<28} {'':<15} {fmt(stats['annual_total']):>14}")
-
-    # =========================================================================
-    # A FEW TIMES/YEAR
-    # =========================================================================
-    print("\n" + "=" * 80)
-    print("A FEW TIMES/YEAR")
-    print("=" * 80)
-    print(f"\n{'Merchant':<28} {'Category':<15} {'Count':>6} {'Total':>12}")
-    print("-" * 65)
-
-    sorted_periodic = sorted(periodic_merchants.items(), key=lambda x: x[1]['total'], reverse=True)
-    for merchant, data in sorted_periodic:
-        print(f"{merchant:<28} {data['subcategory']:<15} {data['count']:>6} {fmt(data['total']):>14}")
-
-    print(f"\n{'TOTAL':<28} {'':<15} {'':<6} {fmt(stats['periodic_total']):>14}")
-
-    # =========================================================================
-    # LARGE ONE-TIME
-    # =========================================================================
-    print("\n" + "=" * 80)
-    print("LARGE ONE-TIME")
-    print("=" * 80)
-    print(f"\n{'Merchant':<28} {'Category':<15} {'Total':>12}")
-    print("-" * 58)
-
-    sorted_oneoff = sorted(one_off_merchants.items(), key=lambda x: x[1]['total'], reverse=True)
-    for merchant, data in sorted_oneoff[:15]:
-        print(f"{merchant:<28} {data['category']:<15} {fmt(data['total']):>14}")
-
-    print(f"\n{'TOTAL ONE-OFF':<28} {'':<15} {fmt(stats['one_off_total']):>14}")
-
-    # =========================================================================
-    # VARIES BY MONTH
-    # =========================================================================
-    print("\n" + "=" * 80)
-    print("VARIES BY MONTH")
-    print("=" * 80)
-    print(f"\n{'Category':<18} {'Subcategory':<15} {'Months':>6} {'Avg/Mo':>10} {'YTD':>12}")
-    print("-" * 70)
-
-    # Group variable merchants by category
-    variable_by_cat = defaultdict(lambda: {'total': 0, 'months': set()})
-    for merchant, data in variable_merchants.items():
-        key = (data['category'], data['subcategory'])
-        variable_by_cat[key]['total'] += data['total']
-        variable_by_cat[key]['months'].update(data['months'])
-
-    sorted_var_cats = sorted(variable_by_cat.items(), key=lambda x: x[1]['total'], reverse=True)
-    for (cat, subcat), info in sorted_var_cats[:20]:
+    sorted_cats = sorted(by_category.items(), key=lambda x: x[1]['total'], reverse=True)
+    for (cat, subcat), data in sorted_cats[:20]:
         if filter_category and cat.lower() != filter_category.lower():
             continue
-        months_active = len(info['months'])
-        avg = info['total'] / months_active if months_active > 0 else 0
-        print(f"{cat:<18} {subcat:<15} {months_active:>6} {fmt(avg):>12} {fmt(info['total']):>14}")
-
-    print(f"\n{'TOTAL VARIABLE':<18} {'':<15} {'':<6} {fmt(stats['variable_monthly']):>12}/mo {fmt(stats['variable_total']):>14}")
+        print(f"{cat:<20} {subcat:<18} {fmt(data['total']):>14}")
 
 
 def print_sections_summary(stats, year=2025, currency_format="${amount}", only_filter=None):

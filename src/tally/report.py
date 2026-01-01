@@ -103,15 +103,9 @@ def write_summary_file_vue(stats, filepath, year=2025, currency_format="${amount
     css_content = (template_dir / 'spending_report.css').read_text(encoding='utf-8')
     js_content = (template_dir / 'spending_report.js').read_text(encoding='utf-8')
 
-    # Extract merchant dicts
-    monthly_merchants = stats['monthly_merchants']
-    annual_merchants = stats['annual_merchants']
-    periodic_merchants = stats['periodic_merchants']
-    one_off_merchants = stats['one_off_merchants']
-    variable_merchants = stats['variable_merchants']
-
     # Get number of months for averaging
     num_months = stats['num_months']
+    by_merchant = stats.get('by_merchant', {})
 
     # Helper to explain a pattern in human-readable form
     def _explain_pattern(pattern):
@@ -334,12 +328,10 @@ def write_summary_file_vue(stats, filepath, year=2025, currency_format="${amount
 
     # Calculate data through date (latest transaction date)
     latest_date = ''
-    for merchant_dict in [monthly_merchants, annual_merchants, periodic_merchants,
-                          one_off_merchants, variable_merchants]:
-        for data in merchant_dict.values():
-            for txn in data.get('transactions', []):
-                if txn.get('date', '') > latest_date:
-                    latest_date = txn.get('date', '')
+    for data in by_merchant.values():
+        for txn in data.get('transactions', []):
+            if txn.get('date', '') > latest_date:
+                latest_date = txn.get('date', '')
 
     # Build category view - group all merchants by category -> subcategory
     # This uses by_merchant (all merchants) so it's not filtered by views.rules
