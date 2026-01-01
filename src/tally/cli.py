@@ -343,8 +343,11 @@ data_sources:
   #   file: data/card-{year}.csv
   #   format: "{{date:%m/%d/%Y}},{{description}},{{amount}}"
   #
-  # Example bank statement (negative amounts = purchases):
-  # Use {{-amount}} to flip signs so expenses are positive
+  # Amount modifiers:
+  #   {{amount}}   - Keep original sign from CSV
+  #   {{-amount}}  - Flip sign (bank statements where negative = expense)
+  #   {{+amount}}  - Absolute value (mixed-sign sources like escrow accounts)
+  #
   # - name: Checking
   #   file: data/checking-{year}.csv
   #   format: "{{date:%Y-%m-%d}},{{description}},{{-amount}}"
@@ -1829,6 +1832,11 @@ def cmd_inspect(args):
                 print("\n  To match by sign in rules:")
                 print("    match: contains(\"GROCERY\") and amount > 0  # expenses")
                 print("    match: contains(\"REFUND\") and amount < 0   # credits/refunds")
+
+            # Always show the +amount option for mixed-sign sources
+            print("\n  TIP: For mixed-sign sources (e.g., escrow accounts):")
+            print(f'    format: "{format_str.replace("{amount}", "{+amount}")}"')
+            print("    {+amount} takes absolute value - all amounts become positive.")
 
             # Show sample credits as hints
             if analysis['sample_credits']:

@@ -23,6 +23,7 @@ class FormatSpec:
     has_header: bool = True
     source_name: Optional[str] = None  # Optional override for transaction source
     negate_amount: bool = False  # If True, flip the sign of amounts (use {-amount} in format)
+    abs_amount: bool = False  # If True, take absolute value of amounts (use {+amount} in format)
     delimiter: Optional[str] = None  # Column delimiter: None=comma, 'tab', 'whitespace', or regex pattern
 
 
@@ -37,7 +38,8 @@ def parse_format_string(format_str: str, description_template: Optional[str] = N
     Format string syntax:
         {field}           - Map this column to a field
         {field:format}    - Field with format specifier (e.g., date format)
-        {-field}          - Negate the value (for amount: flip sign)
+        {-amount}         - Negate amount (flip sign, credits become debits)
+        {+amount}         - Absolute value (all amounts become positive)
         {_}               - Skip this column
 
     Two modes:
@@ -62,8 +64,8 @@ def parse_format_string(format_str: str, description_template: Optional[str] = N
     Raises:
         ValueError: If format string is invalid or missing required fields
     """
-    # Pattern to match {field}, {-field}, or {field:format}
-    field_pattern = re.compile(r'\{(-?)(\w+)(?::([^}]+))?\}')
+    # Pattern to match {field}, {-field}, {+field}, or {field:format}
+    field_pattern = re.compile(r'\{([-+]?)(\w+)(?::([^}]+))?\}')
 
     # Split by comma and parse each column
     parts = [p.strip() for p in format_str.split(',')]
@@ -75,6 +77,7 @@ def parse_format_string(format_str: str, description_template: Optional[str] = N
     custom_captures = {}
     date_format = '%m/%d/%Y'  # Default
     negate_amount = False
+    abs_amount = False
 
     for idx, part in enumerate(parts):
         match = field_pattern.match(part)
@@ -100,9 +103,12 @@ def parse_format_string(format_str: str, description_template: Optional[str] = N
             if field_name == 'date' and format_spec:
                 date_format = format_spec
 
-            # Capture negation for amount
-            if field_name == 'amount' and negate_prefix == '-':
-                negate_amount = True
+            # Capture sign modifier for amount
+            if field_name == 'amount':
+                if negate_prefix == '-':
+                    negate_amount = True
+                elif negate_prefix == '+':
+                    abs_amount = True
         else:
             # Custom capture for description template
             if field_name in custom_captures:
@@ -163,6 +169,7 @@ def parse_format_string(format_str: str, description_template: Optional[str] = N
         location_column=field_positions.get('location'),
         has_header=True,
         negate_amount=negate_amount,
+        abs_amount=abs_amount,
         delimiter=None  # Will be set by config_loader if specified
     )
 

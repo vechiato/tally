@@ -128,7 +128,7 @@ def resolve_source_format(source, warnings=None):
     if 'account_type' in source:
         raise ValueError(
             f"Source '{source_name}': 'account_type' is no longer supported. "
-            f"Use '{{-amount}}' in your format string to negate amounts. "
+            f"Use '{{-amount}}' to negate, or '{{+amount}}' for absolute value. "
             f"To filter income/deposits, add categorization rules with 'amount < 0' conditions. "
             f"Run 'tally inspect {source.get('file', '<file>')}' to see your data's sign convention."
         )
@@ -138,7 +138,8 @@ def resolve_source_format(source, warnings=None):
         raise ValueError(
             f"Source '{source_name}': 'skip_negative' is no longer supported. "
             f"All transactions are now included. To filter credits/deposits, "
-            f"categorize them with rules using 'amount < 0' (or 'amount > 0' if using {{-amount}})."
+            f"categorize them with rules using 'amount < 0'. "
+            f"Use '{{+amount}}' if both signs represent spending."
         )
 
     if 'format' in source:

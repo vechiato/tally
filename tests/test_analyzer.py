@@ -777,6 +777,39 @@ class TestAmountSignHandling:
         finally:
             os.unlink(f.name)
 
+    def test_abs_amount_makes_all_positive(self):
+        """Using {+amount} takes absolute value of all amounts."""
+        csv_content = """Date,Description,Amount
+01/15/2025,MORTGAGE PAYMENT,500.00
+01/16/2025,ESCROW TAX,-200.00
+01/17/2025,INSURANCE PAYMENT,-150.00
+01/18/2025,PRINCIPAL,300.00
+"""
+        f = tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False)
+        try:
+            f.write(csv_content)
+            f.close()
+
+            rules = get_all_rules()
+            format_spec = parse_format_string('{date:%m/%d/%Y}, {description}, {+amount}')
+
+            from tally.analyzer import parse_generic_csv
+            txns = parse_generic_csv(f.name, format_spec, rules)
+
+            assert len(txns) == 4
+            # All amounts should be positive (absolute value)
+            assert txns[0]['amount'] == 500.00   # +500 stays +500
+            assert txns[1]['amount'] == 200.00   # -200 becomes +200
+            assert txns[2]['amount'] == 150.00   # -150 becomes +150
+            assert txns[3]['amount'] == 300.00   # +300 stays +300
+            # All should show as spending (positive), not credits
+            assert txns[0]['is_credit'] == False
+            assert txns[1]['is_credit'] == False
+            assert txns[2]['is_credit'] == False
+            assert txns[3]['is_credit'] == False
+        finally:
+            os.unlink(f.name)
+
     def test_is_credit_flag_set_correctly(self):
         """is_credit flag is True for negative amounts."""
         csv_content = """Date,Description,Amount

@@ -365,8 +365,12 @@ def parse_generic_csv(filepath, format_spec, rules, home_locations=None, source_
             # Parse amount (handle locale-specific formats)
             amount = parse_amount(amount_str, decimal_separator)
 
-            # Apply negation if specified (for credit cards where positive = charge)
-            if format_spec.negate_amount:
+            # Apply amount modifier if specified
+            if format_spec.abs_amount:
+                # Absolute value: all amounts become positive (for mixed-sign sources)
+                amount = abs(amount)
+            elif format_spec.negate_amount:
+                # Negate: flip sign (for credit cards where positive = charge)
                 amount = -amount
 
             # Skip zero amounts
