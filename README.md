@@ -6,11 +6,13 @@ Works with Claude Code, Codex, Copilot, Cursor, or any command-line AI agent.
 
 ## Install
 
+**Linux / macOS**
 ```bash
-# Linux/macOS
 curl -fsSL https://tallyai.money/install.sh | bash
+```
 
-# Windows PowerShell
+**PowerShell**
+```powershell
 irm https://tallyai.money/install.ps1 | iex
 ```
 

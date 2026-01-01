@@ -83,6 +83,38 @@
             color: #4ade80;
         }
 
+        .hamburger {
+            display: none;
+            flex-direction: column;
+            gap: 4px;
+            cursor: pointer;
+            padding: 0.5rem;
+            margin-left: auto;
+        }
+
+        .hamburger span {
+            width: 20px;
+            height: 2px;
+            background: rgba(255,255,255,0.8);
+            transition: all 0.3s;
+        }
+
+        .hamburger.active span:nth-child(1) {
+            transform: rotate(45deg) translate(4px, 4px);
+        }
+
+        .hamburger.active span:nth-child(2) {
+            opacity: 0;
+        }
+
+        .hamburger.active span:nth-child(3) {
+            transform: rotate(-45deg) translate(4px, -4px);
+        }
+
+        .close-menu {
+            display: none;
+        }
+
         .container {
             max-width: 800px;
             margin: 0 auto;
@@ -209,16 +241,141 @@
             color: #4ade80;
         }
 
+        .install-cards {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            margin: 1rem 0 1.5rem;
+        }
+
+        .install-card {
+            background: #0d0d0d;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+        }
+
+        .install-header {
+            background: rgba(255,255,255,0.05);
+            padding: 0.5rem 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .install-dots {
+            display: flex;
+            gap: 6px;
+        }
+
+        .install-dots span {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.2);
+        }
+
+        .install-label {
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: rgba(255,255,255,0.5);
+            margin-left: auto;
+        }
+
+        .install-body {
+            padding: 1rem 1.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+
+        .install-code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            color: #e0e0e0;
+            white-space: nowrap;
+            overflow-x: auto;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .install-code::before {
+            content: '$ ';
+            color: #4ade80;
+        }
+
+        .copy-btn {
+            background: rgba(255,255,255,0.1);
+            border: none;
+            border-radius: 4px;
+            padding: 0.4rem 0.6rem;
+            cursor: pointer;
+            color: rgba(255,255,255,0.6);
+            font-size: 0.75rem;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        .copy-btn:hover {
+            background: rgba(74, 222, 128, 0.2);
+            color: #4ade80;
+        }
+
+        .copy-btn.copied {
+            background: rgba(74, 222, 128, 0.2);
+            color: #4ade80;
+        }
+
         @media (max-width: 768px) {
-            nav .nav-inner {
-                flex-wrap: wrap;
-                gap: 1rem;
+            nav {
+                padding: 1rem 1.5rem;
+            }
+            .hamburger {
+                display: flex;
             }
             nav .nav-links {
-                order: 3;
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                background: #0a1a0a;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                gap: 0.5rem;
+                z-index: 200;
+            }
+            nav .nav-links.active {
+                display: flex;
+            }
+            nav .nav-links a {
+                padding: 1rem 2rem;
+                font-size: 1.25rem;
+                font-weight: 500;
                 width: 100%;
-                flex-wrap: wrap;
-                gap: 1rem;
+                text-align: center;
+            }
+            nav .nav-github {
+                display: none;
+            }
+            nav .nav-links .mobile-github {
+                display: block !important;
+            }
+            nav .nav-links .close-menu {
+                display: block;
+                position: absolute;
+                top: 1rem;
+                right: 1.5rem;
+                font-size: 2rem;
+                color: rgba(255,255,255,0.6);
+                cursor: pointer;
+                padding: 0.5rem;
+            }
+            nav .nav-links .close-menu:hover {
+                color: #4ade80;
             }
             h1 { font-size: 2rem; }
             .container { padding: 2rem 1.5rem 3rem; }
@@ -229,11 +386,18 @@
     <nav>
         <div class="nav-inner">
             <a href="index.html" class="nav-logo"><img src="logo.svg" alt="Tally">tally</a>
+            <div class="hamburger" onclick="this.classList.toggle('active'); document.querySelector('.nav-links').classList.toggle('active')">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
             <div class="nav-links">
+                <span class="close-menu" onclick="document.querySelector('.nav-links').classList.remove('active'); document.querySelector('.hamburger').classList.remove('active')">&times;</span>
                 <a href="quickstart.html" class="active">Quick Start</a>
                 <a href="guide.html">Guide</a>
                 <a href="reference.html">Reference</a>
                 <a href="formats.html">Formats</a>
+                <a href="https://github.com/davidfowl/tally" class="mobile-github" style="display:none;">GitHub</a>
             </div>
             <a href="https://github.com/davidfowl/tally" class="nav-github">GitHub</a>
         </div>
@@ -245,11 +409,28 @@
 
         <h2><span class="step-number">1</span> Install Tally</h2>
         <p>Choose your platform:</p>
-        <pre><code><span class="comment"># Linux / macOS</span>
-<span class="cmd">curl -fsSL https://tallyai.money/install.sh | bash</span>
-
-<span class="comment"># Windows PowerShell</span>
-<span class="cmd">irm https://tallyai.money/install.ps1 | iex</span></code></pre>
+        <div class="install-cards">
+            <div class="install-card">
+                <div class="install-header">
+                    <div class="install-dots"><span></span><span></span><span></span></div>
+                    <div class="install-label">Linux / macOS</div>
+                </div>
+                <div class="install-body">
+                    <div class="install-code" data-cmd="curl -fsSL https://tallyai.money/install.sh | bash">curl -fsSL https://tallyai.money/install.sh | bash</div>
+                    <button class="copy-btn" onclick="copyCmd(this)">Copy</button>
+                </div>
+            </div>
+            <div class="install-card">
+                <div class="install-header">
+                    <div class="install-dots"><span></span><span></span><span></span></div>
+                    <div class="install-label">PowerShell</div>
+                </div>
+                <div class="install-body">
+                    <div class="install-code" data-cmd="irm https://tallyai.money/install.ps1 | iex">irm https://tallyai.money/install.ps1 | iex</div>
+                    <button class="copy-btn" onclick="copyCmd(this)">Copy</button>
+                </div>
+            </div>
+        </div>
 
         <h2><span class="step-number">2</span> Create a Budget Folder</h2>
         <p>Initialize a new folder to hold your configuration and data:</p>
@@ -297,5 +478,19 @@
             <a href="reference.html">Reference &rarr; Full merchants.rules and views.rules syntax</a>
         </div>
     </div>
+
+    <script>
+        function copyCmd(btn) {
+            const cmd = btn.previousElementSibling.dataset.cmd;
+            navigator.clipboard.writeText(cmd).then(() => {
+                btn.textContent = 'Copied!';
+                btn.classList.add('copied');
+                setTimeout(() => {
+                    btn.textContent = 'Copy';
+                    btn.classList.remove('copied');
+                }, 2000);
+            });
+        }
+    </script>
 </body>
 </html>

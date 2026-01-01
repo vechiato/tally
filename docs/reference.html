@@ -277,16 +277,87 @@
             margin-bottom: 0;
         }
 
+        .hamburger {
+            display: none;
+            flex-direction: column;
+            gap: 4px;
+            cursor: pointer;
+            padding: 0.5rem;
+            margin-left: auto;
+        }
+
+        .hamburger span {
+            width: 20px;
+            height: 2px;
+            background: rgba(255,255,255,0.8);
+            transition: all 0.3s;
+        }
+
+        .hamburger.active span:nth-child(1) {
+            transform: rotate(45deg) translate(4px, 4px);
+        }
+
+        .hamburger.active span:nth-child(2) {
+            opacity: 0;
+        }
+
+        .hamburger.active span:nth-child(3) {
+            transform: rotate(-45deg) translate(4px, -4px);
+        }
+
+        .close-menu {
+            display: none;
+        }
+
         @media (max-width: 768px) {
-            nav .nav-inner {
-                flex-wrap: wrap;
-                gap: 1rem;
+            nav {
+                padding: 1rem 1.5rem;
+            }
+            .hamburger {
+                display: flex;
             }
             nav .nav-links {
-                order: 3;
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                background: #0a1a0a;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                gap: 0.5rem;
+                z-index: 200;
+            }
+            nav .nav-links.active {
+                display: flex;
+            }
+            nav .nav-links a {
+                padding: 1rem 2rem;
+                font-size: 1.25rem;
+                font-weight: 500;
                 width: 100%;
-                flex-wrap: wrap;
-                gap: 1rem;
+                text-align: center;
+            }
+            nav .nav-github {
+                display: none;
+            }
+            nav .nav-links .mobile-github {
+                display: block !important;
+            }
+            nav .nav-links .close-menu {
+                display: block;
+                position: absolute;
+                top: 1rem;
+                right: 1.5rem;
+                font-size: 2rem;
+                color: rgba(255,255,255,0.6);
+                cursor: pointer;
+                padding: 0.5rem;
+            }
+            nav .nav-links .close-menu:hover {
+                color: #4ade80;
             }
             h1 { font-size: 2rem; }
             .container { padding: 2rem 1.5rem 3rem; }
@@ -300,11 +371,18 @@
     <nav>
         <div class="nav-inner">
             <a href="index.html" class="nav-logo"><img src="logo.svg" alt="Tally">tally</a>
+            <div class="hamburger" onclick="this.classList.toggle('active'); document.querySelector('.nav-links').classList.toggle('active')">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
             <div class="nav-links">
+                <span class="close-menu" onclick="document.querySelector('.nav-links').classList.remove('active'); document.querySelector('.hamburger').classList.remove('active')">&times;</span>
                 <a href="quickstart.html">Quick Start</a>
                 <a href="guide.html">Guide</a>
                 <a href="reference.html" class="active">Reference</a>
                 <a href="formats.html">Formats</a>
+                <a href="https://github.com/davidfowl/tally" class="mobile-github" style="display:none;">GitHub</a>
             </div>
             <a href="https://github.com/davidfowl/tally" class="nav-github">GitHub</a>
         </div>
