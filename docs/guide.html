@@ -455,11 +455,13 @@ Run: tally run
 
         <h3>Inspect CSV structure</h3>
         <pre><code><span class="cmd">tally inspect data/chase.csv</span></code></pre>
-        <p>Shows column headers and sample data. Suggests format string and account type.</p>
+        <p>Analyzes CSV structure with column type detection (dates, currency, numbers, categorical). Shows samples for both positive and negative amounts to help understand sign conventions.</p>
 
         <h3>Explain a classification</h3>
         <pre><code><span class="cmd">tally explain Netflix -vv</span></code></pre>
-        <p>Shows why a merchant is classified a certain way, including which rule matched.</p>
+        <p>Shows why a merchant is classified a certain way, including which rule matched. Supports combined filters:</p>
+        <pre><code><span class="cmd">tally explain --category Food --month Jan</span>
+<span class="cmd">tally explain --tags business --month 2025-01</span></code></pre>
 
         <h3>Debug configuration</h3>
         <pre><code><span class="cmd">tally diag --format json</span></code></pre>

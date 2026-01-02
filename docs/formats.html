@@ -549,16 +549,12 @@
                 <td>Amount column (take absolute value)</td>
             </tr>
             <tr>
-                <td><code>{_}</code></td>
+                <td><code>{_}</code> or <code>{*}</code></td>
                 <td>Skip this column</td>
             </tr>
             <tr>
                 <td><code>{custom_name}</code></td>
                 <td>Capture column as custom field</td>
-            </tr>
-            <tr>
-                <td><code>{location}</code></td>
-                <td>Location code for travel detection</td>
             </tr>
         </table>
 
@@ -706,7 +702,7 @@ UBER -> <span class="string">"Uber"</span>, Travel, Transport</code></pre>
             </tr>
             <tr>
                 <td><code>tally inspect &lt;csv&gt;</code></td>
-                <td>Analyze CSV structure</td>
+                <td>Analyze CSV structure and detect column types</td>
             </tr>
             <tr>
                 <td><code>tally discover</code></td>
@@ -747,7 +743,15 @@ tally run --format json --category Food
 <span class="comment"># Explain specific classifications</span>
 tally explain --classification monthly
 tally explain --category Subscriptions
-tally explain --tags business</code></pre>
+tally explain --tags business
+
+<span class="comment"># Filter by month (name, number, or YYYY-MM)</span>
+tally explain --month Jan
+tally explain --month 2025-01
+
+<span class="comment"># Combine multiple filters</span>
+tally explain --category Food --month Jan
+tally explain --month 2025-01 --tags business</code></pre>
     </div>
 </body>
 </html>
