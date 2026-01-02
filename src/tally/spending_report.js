@@ -107,6 +107,9 @@ const MerchantSection = defineComponent({
         categoryTotal: { type: Number, default: 0 },
         grandTotal: { type: Number, default: 0 },
         grossSpending: { type: Number, default: 0 },
+        incomeTotal: { type: Number, default: 0 },
+        investmentTotal: { type: Number, default: 0 },
+        typeTotals: { type: Object, default: null },
         numMonths: { type: Number, default: 12 },
         headerColor: { type: String, default: '' },
         // Injected from parent
@@ -146,7 +149,12 @@ const MerchantSection = defineComponent({
                     <template v-if="categoryMode">
                         <span class="section-monthly">{{ formatCurrency(totalAmount / numMonths) }}/mo</span> ·
                         <span class="section-ytd">{{ formatCurrency(totalAmount) }}</span>
-                        <span class="section-pct">({{ formatPct(totalAmount, grossSpending) }})</span>
+                        <span class="section-pct" v-if="typeTotals">
+                            <span v-if="typeTotals.spending > 0 && grossSpending > 0">({{ formatPct(typeTotals.spending, grossSpending) }})</span>
+                            <span v-if="typeTotals.income > 0 && incomeTotal > 0" class="income-pct">({{ formatPct(typeTotals.income, incomeTotal) }} income)</span>
+                            <span v-if="typeTotals.investment > 0 && investmentTotal > 0" class="investment-pct">({{ formatPct(typeTotals.investment, investmentTotal) }} invest)</span>
+                        </span>
+                        <span class="section-pct" v-else-if="grossSpending > 0">({{ formatPct(totalAmount, grossSpending) }})</span>
                     </template>
                     <template v-else>
                         <span v-if="showTotal" class="section-ytd credit-amount">+{{ formatCurrency(totalAmount) }}</span>

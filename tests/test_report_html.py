@@ -579,31 +579,36 @@ class TestEdgeCasesAndCalculations:
         expect(food_section.locator(".section-pct")).to_be_visible()
 
     def test_category_percentages_sum_to_100(self, page: Page, edge_case_report_path):
-        """Category percentages sum to approximately 100%.
+        """Spending category percentages sum to approximately 100%.
 
-        Percentages are calculated against grossSpending (positive categories only),
-        so they should always sum to ~100% regardless of credits/refunds.
+        Percentages are calculated against grossSpending for spending portions only.
+        Income/investment portions have their own percentages (labeled "income"/"invest").
         """
         page.goto(f"file://{edge_case_report_path}")
         import re
         # Get all percentage values from positive category sections
         pct_elements = page.locator("[data-testid^='section-cat-'] .section-pct").all()
-        percentages = []
+        spending_percentages = []
         for el in pct_elements:
             text = el.inner_text()
             if "%" in text:
-                match = re.search(r'([\d.]+)%', text)
-                if match:
-                    percentages.append(float(match.group(1)))
+                # Find all percentage patterns - spending ones don't have "income" or "invest" label
+                # Format: "(X%)" for spending, "(Y% income)" for income, "(Z% invest)" for investment
+                for match in re.finditer(r'\(([\d.]+)%([^)]*)\)', text):
+                    pct = float(match.group(1))
+                    label = match.group(2).strip()
+                    # Only sum spending percentages (no label)
+                    if not label:
+                        spending_percentages.append(pct)
 
-        # Verify we have percentages for all positive categories
-        assert len(percentages) >= 3, f"Expected at least 3 categories, got {len(percentages)}"
+        # Verify we have spending percentages
+        assert len(spending_percentages) >= 3, f"Expected at least 3 spending categories, got {len(spending_percentages)}"
         # Each percentage should be reasonable (0-100%)
-        for pct in percentages:
+        for pct in spending_percentages:
             assert 0 <= pct <= 100, f"Percentage {pct}% out of range"
-        # Percentages should sum to ~100% (allow small rounding error)
-        total_pct = sum(percentages)
-        assert 99 <= total_pct <= 101, f"Percentages sum to {total_pct}%, expected ~100%"
+        # Spending percentages should sum to ~100% (allow small rounding error)
+        total_pct = sum(spending_percentages)
+        assert 99 <= total_pct <= 101, f"Spending percentages sum to {total_pct}%, expected ~100%"
 
     def test_merchant_percentage_within_category(self, page: Page, edge_case_report_path):
         """Merchant percentages within a category sum to 100%."""

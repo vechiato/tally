@@ -10,8 +10,6 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
-from .classification import is_excluded_from_spending
-
 # Try to import sentence_transformers for semantic search
 try:
     from sentence_transformers import SentenceTransformer
@@ -341,16 +339,11 @@ def write_summary_file_vue(stats, filepath, year=2025, currency_format="${amount
 
     # Build category view - group all merchants by category -> subcategory
     # This uses by_merchant (all merchants) so it's not filtered by views.rules
-    # Excludes income/transfer/investment tagged merchants (they appear in summary cards)
     def build_category_view():
         # Build from by_merchant which contains ALL merchants (not filtered by sections)
         all_merchants = {}
         by_merchant = stats.get('by_merchant', {})
         for merchant_name, data in by_merchant.items():
-            # Skip merchants excluded from spending (income, transfer, investment)
-            # They appear in the cash flow and investment cards, not spending categories
-            if is_excluded_from_spending(list(data.get('tags', []))):
-                continue
             merchant_id = make_merchant_id(merchant_name)
             all_merchants[merchant_id] = build_section_merchants({merchant_name: data})[merchant_id]
 
@@ -391,6 +384,29 @@ def write_summary_file_vue(stats, filepath, year=2025, currency_format="${amount
             categories[cat]['total'] += merchant.get('ytd', 0)
             categories[cat]['monthly'] += merchant.get('monthly', 0)
             categories[cat]['count'] += merchant.get('count', 0)
+
+        # Compute typeTotals from transactions for each category
+        # This tracks spending/income/investment/transfer breakdown by transaction tags
+        for cat_name, cat_data in categories.items():
+            type_totals = {'spending': 0, 'income': 0, 'investment': 0, 'transfer': 0}
+
+            for subcat in cat_data['subcategories'].values():
+                for merchant in subcat['merchants'].values():
+                    for txn in merchant.get('transactions', []):
+                        txn_tags = set(t.lower() for t in txn.get('tags', []))
+                        amount = txn.get('amount', 0)
+
+                        if 'income' in txn_tags:
+                            type_totals['income'] += abs(amount)
+                        elif 'investment' in txn_tags:
+                            type_totals['investment'] += abs(amount)
+                        elif 'transfer' in txn_tags:
+                            type_totals['transfer'] += abs(amount)
+                        elif amount >= 0:  # Positive = spending
+                            type_totals['spending'] += amount
+                        # Negative amounts without special tags are credits (refunds)
+
+            cat_data['typeTotals'] = type_totals
 
         return categories
 
