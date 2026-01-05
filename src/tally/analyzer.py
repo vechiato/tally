@@ -598,8 +598,8 @@ def print_summary(stats, title=None, filter_category=None, currency_format="${am
         currency_format: Format string for currency
         group_by: How to group in BY CATEGORY section - 'merchant' or 'subcategory'
     """
-    # Lazy import to avoid circular dependency
-    from .cli import C
+    # Import colors for terminal output
+    from .colors import C
 
     # Local helper for currency formatting
     def fmt(amount):
@@ -771,8 +771,8 @@ def print_sections_summary(stats, title=None, currency_format="${amount}", only_
         currency_format: Format string for currency
         only_filter: Optional list of section names (lowercase) to show
     """
-    # Lazy import to avoid circular dependency
-    from .cli import C
+    # Import colors for terminal output
+    from .colors import C
 
     def fmt(amount):
         return format_currency(amount, currency_format)

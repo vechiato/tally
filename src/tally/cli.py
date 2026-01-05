@@ -9,51 +9,12 @@ Usage:
 """
 
 import argparse
-import os
-import shutil
 import sys
 
 from .colors import C
-from .cli_utils import (
-    find_config_dir,
-    resolve_config_dir,
-    init_config,
-    warn_deprecated_parser,
-    print_deprecation_warnings,
-    check_deprecated_description_cleaning,
-)
-from .migrations import (
-    SCHEMA_VERSION,
-    get_schema_version,
-    run_migrations,
-    migrate_v0_to_v1,
-    migrate_csv_to_rules,
-    check_merchant_migration,
-)
-
 from ._version import (
     VERSION, GIT_SHA, REPO_URL, check_for_updates,
-    get_latest_release_info, perform_update
 )
-from .config_loader import load_config
-
-from .merchant_utils import get_all_rules, diagnose_rules, explain_description, load_merchant_rules, get_tag_only_rules, apply_tag_rules, get_transforms
-from .analyzer import (
-    parse_amex,
-    parse_boa,
-    parse_generic_csv,
-    auto_detect_csv_format,
-    analyze_transactions,
-    print_summary,
-    print_sections_summary,
-    write_summary_file_vue,
-)
-
-# Backwards compatibility aliases (deprecated - import from cli_utils directly)
-_check_merchant_migration = check_merchant_migration
-_warn_deprecated_parser = warn_deprecated_parser
-_print_deprecation_warnings = print_deprecation_warnings
-_check_deprecated_description_cleaning = check_deprecated_description_cleaning
 
 
 def main():
