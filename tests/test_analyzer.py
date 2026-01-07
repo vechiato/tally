@@ -1783,6 +1783,67 @@ class TestAmountTransforms:
         finally:
             os.unlink(f.name)
 
+    def test_amount_transform_with_currency_symbols(self):
+        """Amount transform handles $ currency symbols in both amount and fee columns."""
+        csv_content = """Date,Description,Amount,Fee
+01/15/2025,WIRE TRANSFER,"$100.00","$25.00"
+01/16/2025,ACH PAYMENT,"$500.00","$5.00"
+"""
+        f = tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False)
+        try:
+            f.write(csv_content)
+            f.close()
+
+            rules = [('true', 'Bank Transfer', 'Transfers', 'Bank', None, 'test', [])]
+
+            format_spec = parse_format_string('{date:%m/%d/%Y},{description},{amount},{fee}')
+            format_spec.has_header = True
+
+            # Strip $ from both amount and fee, then add them
+            # Note: amount is already parsed by parse_amount() which handles $
+            # But fee is a custom field that needs $ stripped via transform
+            transforms = [
+                ('field.amount', 'field.amount + regex_replace(field.fee, "\\\\$", "")'),
+            ]
+
+            txns = parse_generic_csv(f.name, format_spec, rules, transforms=transforms)
+
+            assert len(txns) == 2
+            # First: 100 + 25 = 125
+            assert txns[0]['amount'] == 125.00
+            # Second: 500 + 5 = 505
+            assert txns[1]['amount'] == 505.00
+        finally:
+            os.unlink(f.name)
+
+    def test_amount_transform_strips_currency_and_commas(self):
+        """Amount transform can strip both $ and thousands separators."""
+        csv_content = """Date,Description,Amount,Fee
+01/15/2025,BIG TRANSFER,"$1,000.00","$250.00"
+"""
+        f = tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False)
+        try:
+            f.write(csv_content)
+            f.close()
+
+            rules = [('true', 'Transfer', 'Transfers', 'Bank', None, 'test', [])]
+
+            format_spec = parse_format_string('{date:%m/%d/%Y},{description},{amount},{fee}')
+            format_spec.has_header = True
+
+            # Strip $ and commas from fee using regex_replace
+            transforms = [
+                ('field.amount', 'field.amount + regex_replace(regex_replace(field.fee, "\\\\$", ""), ",", "")'),
+            ]
+
+            txns = parse_generic_csv(f.name, format_spec, rules, transforms=transforms)
+
+            assert len(txns) == 1
+            # 1000 + 250 = 1250
+            assert txns[0]['amount'] == 1250.00
+        finally:
+            os.unlink(f.name)
+
 
 class TestFieldAccessEdgeCases:
     """Edge case tests for field access in rule expressions."""

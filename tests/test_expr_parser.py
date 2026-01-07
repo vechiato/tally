@@ -288,6 +288,38 @@ class TestEvaluateArithmetic:
         evaluator = TransactionEvaluator(txn_ctx)
         assert evaluator.evaluate(parsed) == 100.0
 
+    def test_currency_symbol_needs_regex_replace(self):
+        """Currency symbols like $ must be stripped with regex_replace before arithmetic."""
+        from tally.expr_parser import TransactionContext, TransactionEvaluator, parse_expression
+        from datetime import datetime
+        txn_ctx = TransactionContext.from_transaction({
+            'description': 'TEST',
+            'amount': 100.0,
+            'date': datetime(2025, 1, 1),
+            'field': {'fee': '$25.00'},
+            'source': 'test'
+        })
+        # Use regex_replace to strip $ before adding
+        parsed = parse_expression('field.amount + regex_replace(field.fee, "\\\\$", "")')
+        evaluator = TransactionEvaluator(txn_ctx)
+        assert evaluator.evaluate(parsed) == 125.0
+
+    def test_currency_with_commas_needs_double_replace(self):
+        """Currency with thousands separators needs multiple regex_replace calls."""
+        from tally.expr_parser import TransactionContext, TransactionEvaluator, parse_expression
+        from datetime import datetime
+        txn_ctx = TransactionContext.from_transaction({
+            'description': 'TEST',
+            'amount': 1000.0,
+            'date': datetime(2025, 1, 1),
+            'field': {'fee': '$1,250.00'},
+            'source': 'test'
+        })
+        # Chain regex_replace to strip $ then commas
+        parsed = parse_expression('field.amount + regex_replace(regex_replace(field.fee, "\\\\$", ""), ",", "")')
+        evaluator = TransactionEvaluator(txn_ctx)
+        assert evaluator.evaluate(parsed) == 2250.0
+
 
 # =============================================================================
 # Evaluation Tests - Comparisons
