@@ -243,6 +243,15 @@
 <span class="keyword">subcategory:</span> &lt;Sub&gt;       <span class="comment"># Optional: secondary grouping</span>
 <span class="keyword">tags:</span> tag1, tag2         <span class="comment"># Optional: labels for filtering</span></code></pre>
 
+        <h3 id="transforms"><a href="#transforms" class="anchor-link">#</a>Transforms</h3>
+        <p>Use <code>@transforms</code> at the top of <code>merchants.rules</code> to mutate fields before rule matching and reporting. Each line inside the block sets <code>field.&lt;name&gt;</code> to an expression. Built-ins <code>field.amount</code>, <code>field.description</code>, and <code>field.date</code> update the real transaction fields; other names go to <code>field</code> captures.</p>
+        <pre><code><span class="highlight">@transforms</span>
+<span class="comment"># Add fee column to amount (handles $ and commas)</span>
+field.amount = field.amount + regex_replace(regex_replace(field.fee, <span class="string">"\\$"</span>, <span class="string">""</span>), <span class="string">","</span>, <span class="string">""</span>)
+
+<span class="comment"># Clean descriptions</span>
+field.description = regex_replace(field.description, <span class="string">"^APLPAY\\s+"</span>, <span class="string">""</span>)</code></pre>
+
         <h3>Example</h3>
         <pre><code><span class="highlight">[Netflix]</span>
 <span class="keyword">match:</span> contains(<span class="string">"NETFLIX"</span>)

@@ -306,6 +306,15 @@ subcategory: Grocery</code></pre>
 
         <p>See the <a href="reference.html">Reference</a> for full syntax.</p>
 
+        <h3 id="transforms"><a href="#transforms" class="anchor-link">#</a>Using Transforms</h3>
+        <p>Add an optional <code>@transforms</code> block at the top of <code>merchants.rules</code> to pre-process rows before matching. Example: add a fee column to the transaction amount.</p>
+        <pre><code><span class="highlight">@transforms</span>
+<span class="comment"># Strip $/commas from fee, then add to amount</span>
+field.amount = field.amount + regex_replace(regex_replace(field.fee, "\\$", ""), ",", "")
+
+<span class="comment"># Clean descriptions</span>
+field.description = regex_replace(field.description, "^APLPAY\\s+", "")</code></pre>
+
         <div class="callout">
             <div class="callout-title">Tip: Be specific with the AI</div>
             <p>Tell the AI your preferences: "Coffee shops should be Food > Coffee, not Food > Restaurant" or "Tag all Uber rides as business, reimbursable".</p>
